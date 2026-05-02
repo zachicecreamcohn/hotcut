@@ -28,7 +28,7 @@ git worktree add .worktree/ticket-123 -b zach/ticket-123
 # cut to a worktree (warms it on first cut, instant after)
 hotcut ticket-123
 
-# pre-warm everything up front instead
+# pre-warm everything up front instead (recommended if your dev server is slow to start)
 hotcut warm-all
 
 # see what's live
@@ -66,6 +66,10 @@ set-hook -g client-session-changed 'run-shell "hotcut \"#{session_name}\" 2>/dev
 ```
 
 A zsh \`chpwd\` hook does the same on \`cd\`.
+
+## Warming
+
+`hotcut <name>` will warm a worktree on first cut if it isn't already running, then route to it instantly on subsequent cuts. If your build/start process is slow and you expect to switch around a lot, run `hotcut warm-all` up front so every worktree is ready before you start cutting.
 
 ## Commands
 

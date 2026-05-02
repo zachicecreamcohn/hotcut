@@ -100,6 +100,9 @@ export class Source {
       shell: true,
       stdio: "pipe",
       reject: false,
+      // Run in its own process group so we can SIGTERM the whole tree
+      // (e.g. when `cmd` is `npm-run-all` which forks several grandchildren).
+      detached: true,
     });
 
     child.stdout?.on("data", (b: Buffer) => this.onChunk("stdout", b));
@@ -130,13 +133,9 @@ export class Source {
       return;
     }
     const graceMs = toMs(this.config.run.shutdown_timeout);
-    child.kill("SIGTERM");
+    killGroup(child.pid, "SIGTERM");
     const killer = setTimeout(() => {
-      try {
-        child.kill("SIGKILL");
-      } catch {
-        // already dead
-      }
+      killGroup(child.pid, "SIGKILL");
     }, graceMs);
     try {
       await child;
@@ -180,6 +179,21 @@ export class Source {
       });
     }
     return out;
+  }
+}
+
+function killGroup(pid: number | undefined, signal: "SIGTERM" | "SIGKILL"): void {
+  if (!pid) return;
+  try {
+    // Negative pid signals the whole process group (created via detached: true).
+    process.kill(-pid, signal);
+  } catch {
+    // Group already gone — fall back to direct kill in case the leader survived.
+    try {
+      process.kill(pid, signal);
+    } catch {
+      // already dead
+    }
   }
 }
 
