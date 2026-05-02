@@ -18,8 +18,12 @@ _hotcut_root() {
 
 _hotcut() {
   local root
-  root=\$(_hotcut_root) || return
-  [[ -d "\$root" ]] && compadd -- \${(f)"\$(ls -1 "\$root" 2>/dev/null)"}
+  if (( CURRENT == 2 )); then
+    root=\$(_hotcut_root) || return
+    [[ -d "\$root" ]] && compadd -- \${(f)"\$(ls -1 "\$root" 2>/dev/null)"}
+  elif (( CURRENT == 3 )); then
+    compadd -- logs
+  fi
 }
 
 compdef _hotcut hotcut

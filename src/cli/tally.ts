@@ -41,6 +41,7 @@ export class TallyRenderer {
     }
     for (const p of projects) {
       lines.push(p.name);
+      const nameWidth = p.sources.reduce((m, s) => Math.max(m, s.name.length), 0);
       p.sources.forEach((s, i) => {
         const idx = String(i + 1).padStart(2);
         const glyph = STATE_GLYPH[s.state];
@@ -48,7 +49,7 @@ export class TallyRenderer {
         const port = s.port == null ? "—" : ":" + s.port;
         const arrow = s.onProgram ? "  ← on program" : "";
         lines.push(
-          "  " + idx + ") " + glyph + " " + s.name.padEnd(10) + " " + port.padEnd(7) + " " + label.padEnd(8) + arrow,
+          "  " + idx + ") " + glyph + " " + s.name.padEnd(nameWidth) + " " + port.padStart(7) + " " + label.padEnd(8) + arrow,
         );
       });
     }

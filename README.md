@@ -69,8 +69,8 @@ A zsh \`chpwd\` hook does the same on \`cd\`.
 
 ```sh
 hotcut <name>             # cut program to a worktree
+hotcut <name> logs [-f]   # tail a worktree's logs
 hotcut status [-w]        # see what's live (-w to watch)
-hotcut logs <name> [-f]   # tail a source
 hotcut warm-all           # pre-warm every worktree
 hotcut init               # write hotcut.toml
 hotcut stop               # stop the daemon

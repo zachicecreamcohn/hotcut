@@ -125,6 +125,29 @@ describe("cli integration", () => {
     }
   });
 
+  it("hotcut <worktree> logs is equivalent to hotcut logs <worktree>", async () => {
+    await runCli(["A"]);
+    await new Promise((r) => setTimeout(r, 200));
+    const r = await runCli(["A", "logs", "--json"]);
+    const lines = r.stdout.trim().split("\n").filter(Boolean).map((l) => JSON.parse(l));
+    assert.ok(lines.length > 0, "expected at least one log line, got: " + r.stdout);
+    for (const l of lines) {
+      assert.ok(l.ts > 0);
+      assert.ok(l.stream === "stdout" || l.stream === "stderr");
+      assert.equal(typeof l.line, "string");
+    }
+  });
+
+  it("hotcut <worktree> <unknown> errors", async () => {
+    await assert.rejects(
+      runCli(["A", "bogus"]),
+      (err: { stderr?: string; code?: number }) => {
+        assert.match(err.stderr ?? "", /unknown subcommand for worktree 'A': bogus/);
+        return true;
+      },
+    );
+  });
+
   it("auto-discovers new worktrees and removes deleted ones", async () => {
     await runCli(["status"]);
 
