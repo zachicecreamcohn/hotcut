@@ -133,7 +133,7 @@ hotcut completions bash >> ~/.bashrc
 hotcut completions fish > ~/.config/fish/completions/hotcut.fish
 ```
 
-After that, `hotcut <TAB>` lists worktrees and `hotcut PL-<TAB>` cycles through `PL-*`.
+After that, `hotcut <TAB>` lists worktrees and `hotcut foo-<TAB>` cycles through `foo-*`.
 
 ## Configuration
 

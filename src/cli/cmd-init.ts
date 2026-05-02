@@ -23,6 +23,7 @@ async function runInit(): Promise<void> {
   } catch (err) {
     if (err instanceof ConfigExistsError) {
       logError(err.message);
+      printCompletionHint();
       process.exit(2);
     }
     throw err;
