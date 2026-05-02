@@ -157,10 +157,15 @@ export class ProjectRuntime {
         try {
           await source.up();
         } catch (err) {
-          throw new ProtocolError(
-            ERROR_CODES.READY_TIMEOUT,
-            err instanceof Error ? err.message : String(err),
-          );
+          const base = err instanceof Error ? err.message : String(err);
+          const tail = source.logBuffer
+            .recent(10)
+            .map((e) => "  " + e.line)
+            .join("\n");
+          const msg = tail
+            ? base + "\n\nlast log lines:\n" + tail + "\n\nhint: hotcut logs " + name
+            : base + "\n\nhint: hotcut logs " + name;
+          throw new ProtocolError(ERROR_CODES.READY_TIMEOUT, msg);
         }
       } else {
         void source.up().catch(() => {});
