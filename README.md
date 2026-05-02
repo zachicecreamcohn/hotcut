@@ -87,6 +87,9 @@ By default, hotcut doesn't auto-switch — I run `hotcut <name>` when I want to 
 set-hook -g client-session-changed 'run-shell "hotcut \"#{session_name}\" 2>/dev/null"'
 ```
 
+> [!IMPORTANT]
+> The hook passes `#{session_name}` straight to `hotcut`, so a session named `PL-456` cuts to `.worktree/PL-456`. If your sessions are named `polypad-PL-456` or `1-PL-456`, this is a no-op. Either name sessions after the worktree (`tmux new -s PL-456`), or wrap `#{session_name}` in a `run-shell` snippet that strips your prefix.
+
 For non-tmux flows, a zsh `chpwd` hook does the same on `cd`. See [the shell integration plan](plans/07-shell-integration.md) for bash and fish equivalents.
 
 
