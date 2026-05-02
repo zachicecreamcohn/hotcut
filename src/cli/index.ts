@@ -7,8 +7,10 @@ import { daemonCommand } from "./cmd-daemon.js";
 import { logsCommand } from "./cmd-logs.js";
 import { initCommand } from "./cmd-init.js";
 import { stopCommand } from "./cmd-stop.js";
+import { completionsCommand } from "./cmd-complete.js";
 
 const KNOWN_VERBS = new Set([
+  "completions",
   "init",
   "tally",
   "logs",
@@ -45,6 +47,7 @@ async function main(): Promise<void> {
   program.addCommand(logsCommand());
   program.addCommand(stopCommand());
   program.addCommand(daemonCommand());
+  program.addCommand(completionsCommand());
 
   await program.parseAsync(process.argv);
 }

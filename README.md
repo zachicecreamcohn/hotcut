@@ -125,6 +125,16 @@ Every command auto-starts the daemon over a Unix socket if it isn't already runn
 
 `tally` and `logs` accept `--json` for tooling. `hotcut daemon` runs the daemon in the foreground for debugging — you don't normally need it.
 
+### Tab completion
+
+```sh
+hotcut completions zsh  >> ~/.zshrc          # then: exec zsh
+hotcut completions bash >> ~/.bashrc
+hotcut completions fish > ~/.config/fish/completions/hotcut.fish
+```
+
+After that, `hotcut <TAB>` lists worktrees and `hotcut PL-<TAB>` cycles through `PL-*`.
+
 ## Configuration
 
 A single `hotcut.toml` in your project root:
