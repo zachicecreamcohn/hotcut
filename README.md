@@ -91,7 +91,7 @@ set-hook -g client-session-changed 'run-shell "hotcut \"#{session_name}\" 2>/dev
 
 > [!IMPORTANT]
 > The hook passes `#{session_name}` straight to `hotcut`, so a session named `ticket-456` cuts to `.worktree/ticket-456`. If your sessions are named `myapp-ticket-456` or `1-ticket-456`, this is a no-op. Either name sessions after the worktree (`tmux new -s ticket-456`), or wrap `#{session_name}` in a `run-shell` snippet that strips your prefix.
-For non-tmux flows, a zsh `chpwd` hook does the same on `cd`. See [the shell integration plan](plans/07-shell-integration.md) for bash and fish equivalents.
+For non-tmux flows, a zsh `chpwd` hook does the same on `cd`.
 
 
 ## How hotcut runs your dev server
