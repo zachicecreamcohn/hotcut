@@ -4,7 +4,6 @@ import { connectDaemon, registerProject, resolveProject, exitForProtocolError } 
 
 interface LogsOptions {
   follow?: boolean;
-  lines?: string;
   json?: boolean;
 }
 
@@ -13,7 +12,6 @@ export function logsCommand(): Command {
     .description("Stream a source's stdout/stderr")
     .argument("<name>", "source name (worktree)")
     .option("-f, --follow", "follow live (like tail -f)")
-    .option("-n, --lines <count>", "show only the last N buffered lines")
     .option("--json", "emit one JSON entry per line")
     .action(async (name: string, opts: LogsOptions) => {
       await runLogs(name, opts);
@@ -25,17 +23,10 @@ async function runLogs(name: string, opts: LogsOptions): Promise<void> {
   const client = await connectDaemon();
   await registerProject(client, project).catch(exitForProtocolError);
 
-  const lastN = opts.lines !== undefined ? Number(opts.lines) : undefined;
-  if (lastN !== undefined && (!Number.isFinite(lastN) || lastN < 0)) {
-    process.stderr.write("[hotcut] --lines must be a non-negative integer\n");
-    process.exit(64);
-  }
-
   const stream = client.requestStream<LogEntryDto>("logs", {
     projectRoot: project.root,
     name,
     follow: opts.follow ?? false,
-    lastN,
   });
 
   const onSigint = (): void => {
@@ -48,8 +39,8 @@ async function runLogs(name: string, opts: LogsOptions): Promise<void> {
       process.stdout.write(JSON.stringify(e) + "\n");
       return;
     }
-    const stream = e.stream === "stderr" ? process.stderr : process.stdout;
-    stream.write(e.line + "\n");
+    const out = e.stream === "stderr" ? process.stderr : process.stdout;
+    out.write(e.line + "\n");
   };
 
   try {

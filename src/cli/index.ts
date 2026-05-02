@@ -3,20 +3,17 @@ import { Command } from "commander";
 import { logError } from "../util/log.js";
 import { runCut } from "./cmd-cut.js";
 import { tallyCommand } from "./cmd-tally.js";
-import { upCommand } from "./cmd-up.js";
-import { downCommand } from "./cmd-down.js";
 import { daemonCommand } from "./cmd-daemon.js";
 import { logsCommand } from "./cmd-logs.js";
 import { initCommand } from "./cmd-init.js";
+import { stopCommand } from "./cmd-stop.js";
 
 const KNOWN_VERBS = new Set([
   "init",
   "tally",
-  "up",
-  "down",
-  "daemon",
   "logs",
-  "version",
+  "stop",
+  "daemon",
   "help",
   "--help",
   "-h",
@@ -29,20 +26,11 @@ async function main(): Promise<void> {
 
   // Verb resolver: if the first arg is not a known subcommand, treat as cut.
   if (argv.length >= 1 && argv[0] && !argv[0].startsWith("-") && !KNOWN_VERBS.has(argv[0])) {
-    const name = argv[0];
-    const rest = argv.slice(1);
-    let json = false;
-    let wait: boolean | undefined;
-    for (const a of rest) {
-      if (a === "--json") json = true;
-      else if (a === "--no-wait") wait = false;
-      else if (a === "--wait") wait = true;
-      else {
-        logError("unknown flag: " + a);
-        process.exit(64);
-      }
+    if (argv.length > 1) {
+      logError("unexpected argument: " + argv[1]);
+      process.exit(64);
     }
-    await runCut(name, { json, wait });
+    await runCut(argv[0]);
     return;
   }
 
@@ -52,12 +40,11 @@ async function main(): Promise<void> {
     .description("Cut to any worktree. Live.")
     .version("0.0.1");
 
-  program.addCommand(tallyCommand());
-  program.addCommand(upCommand());
-  program.addCommand(downCommand());
-  program.addCommand(daemonCommand());
-  program.addCommand(logsCommand());
   program.addCommand(initCommand());
+  program.addCommand(tallyCommand());
+  program.addCommand(logsCommand());
+  program.addCommand(stopCommand());
+  program.addCommand(daemonCommand());
 
   await program.parseAsync(process.argv);
 }

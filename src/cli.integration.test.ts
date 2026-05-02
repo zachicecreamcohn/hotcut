@@ -66,7 +66,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
   try {
-    await runCli(["daemon", "stop"]);
+    await runCli(["stop"]);
   } catch {
     // already stopped
   }
@@ -75,18 +75,9 @@ afterEach(async () => {
 });
 
 describe("cli integration", () => {
-  it("auto-starts daemon, runs tally, up --all, cut, and stops", async () => {
+  it("auto-starts daemon, runs tally, cuts to warm sources, and stops", async () => {
     const tally1 = await runCli(["tally"]);
     assert.match(tally1.stderr, /\bp\b/);
-
-    const upRes = await runCli(["up", "--all", "--json"]);
-    const up = JSON.parse(upRes.stdout);
-    assert.equal(up.failed.length, 0);
-
-    const tally2 = await runCli(["tally", "--json"]);
-    const tally = JSON.parse(tally2.stdout);
-    assert.equal(tally.projects.length, 1);
-    assert.equal(tally.projects[0].sources.every((s: { state: string }) => s.state === "warm"), true);
 
     await runCli(["A"]);
     const r1 = await fetch("http://127.0.0.1:" + proxyPort + "/");
@@ -96,7 +87,13 @@ describe("cli integration", () => {
     const r2 = await fetch("http://127.0.0.1:" + proxyPort + "/");
     assert.equal(await r2.text(), "hello from B");
 
-    await runCli(["daemon", "stop"]);
+    const tally2 = await runCli(["tally", "--json"]);
+    const tally = JSON.parse(tally2.stdout);
+    assert.equal(tally.projects.length, 1);
+    const states = tally.projects[0].sources.map((s: { state: string }) => s.state);
+    assert.ok(states.includes("warm"));
+
+    await runCli(["stop"]);
 
     let sockGone = false;
     let pidGone = false;
@@ -115,7 +112,7 @@ describe("cli integration", () => {
   });
 
   it("hotcut logs returns recent stdout/stderr lines", async () => {
-    await runCli(["up", "--all"]);
+    await runCli(["A"]);
     // Give the fixture's startup chatter time to flush.
     await new Promise((r) => setTimeout(r, 200));
     const r = await runCli(["logs", "A", "--json"]);

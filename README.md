@@ -46,7 +46,7 @@ hotcut init
 # create worktrees as you normally do
 git worktree add .worktree/PL-123 -b zach/PL-123
 
-# hotcut auto-discovers and warms it
+# hotcut auto-discovers it
 hotcut tally
 # polypad
 #   ● PL-123    :41001  ready    ← on program
@@ -65,9 +65,9 @@ Open `http://localhost:8080` in your browser. It always points at whatever's on 
 
 hotcut watches `.worktree/` (configurable). Add a worktree with `git worktree add` and it appears in the tally automatically. Delete a worktree with `git worktree remove` and hotcut notices, kills its dev server, and frees the port — no orphaned processes for branches I've cleaned up.
 
-### Lazy or eager warm
+### Lazy warm
 
-By default, sources are warmed on first use. To pre-warm everything: `hotcut up --all`. Memory budget configurable via `max_warm` — hotcut LRU-evicts cold sources when over budget.
+Sources are warmed on first cut. The first `hotcut <name>` for a cold source spawns its dev server, waits for the ready check, then flips program. Subsequent cuts to a warm source are instant.
 
 ### Single stable URL
 
@@ -111,6 +111,20 @@ The console for each warm source isn't an interactive terminal — there's no TT
 
 A future tmux integration (where hotcut spawns each source inside a pane it owns, so you can still `tmux attach` to inspect or interact) is on the roadmap.
 
+## Command reference
+
+```sh
+hotcut <name>             # cut program to a worktree
+hotcut tally [-w]         # see what's live (-w to watch)
+hotcut logs <name> [-f]   # tail a source
+hotcut init               # write hotcut.toml
+hotcut stop               # stop the daemon (tears down everything)
+```
+
+Every command auto-starts the daemon over a Unix socket if it isn't already running.
+
+`tally` and `logs` accept `--json` for tooling. `hotcut daemon` runs the daemon in the foreground for debugging — you don't normally need it.
+
 ## Configuration
 
 A single `hotcut.toml` in your project root:
@@ -127,9 +141,6 @@ ready = { http = "/", timeout = "30s" }
 
 [env]
 PORT = "$HOTCUT_PORT"
-
-[limits]
-max_warm = 3            # LRU-evict beyond this many warm sources
 ```
 
 That's the whole config for most projects.

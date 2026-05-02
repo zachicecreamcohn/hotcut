@@ -6,15 +6,13 @@ import { TallyRenderer } from "./tally.js";
 interface TallyOptions {
   json?: boolean;
   watch?: boolean;
-  allProjects?: boolean;
 }
 
 export function tallyCommand(): Command {
   return new Command("tally")
     .description("Show source status for the current project")
     .option("--json", "machine-readable output")
-    .option("--watch", "poll the daemon and re-render on change")
-    .option("--all-projects", "show all projects managed by the daemon")
+    .option("-w, --watch", "re-render on change")
     .action(async (opts: TallyOptions) => {
       await runTally(opts);
     });
@@ -26,10 +24,7 @@ async function runTally(opts: TallyOptions): Promise<void> {
   await registerProject(client, project).catch(exitForProtocolError);
 
   const fetchOnce = async (): Promise<TallyResult> => {
-    return client.request<TallyResult>("tally", {
-      projectRoot: opts.allProjects ? undefined : project.root,
-      allProjects: opts.allProjects,
-    });
+    return client.request<TallyResult>("tally", { projectRoot: project.root });
   };
 
   const renderer = new TallyRenderer();

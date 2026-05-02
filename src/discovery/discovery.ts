@@ -10,13 +10,9 @@ export interface DiscoveredSource {
 export const RESERVED_NAMES = new Set([
   "init",
   "tally",
-  "up",
-  "down",
   "logs",
+  "stop",
   "daemon",
-  "config",
-  "version",
-  "start",
 ]);
 
 export function worktreeRootPath(

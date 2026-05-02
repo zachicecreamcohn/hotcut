@@ -7,7 +7,7 @@ export class ConfigExistsError extends Error {
   constructor(readonly path: string) {
     super(
       `${CONFIG_FILENAME} already exists at ${path}.\n` +
-        `Pass --force to overwrite.`,
+        `Remove it first if you want to regenerate.`,
     );
     this.name = "ConfigExistsError";
   }
