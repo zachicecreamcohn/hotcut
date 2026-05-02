@@ -156,10 +156,8 @@ PORT = "$HOTCUT_PORT"
 
 That's the whole config for most projects.
 
-## Status
-
-Pre-alpha. See [plans/](./plans) for the design and roadmap.
-
+## Contributions
+Contributions are welcome. Feel free to make a PR.
 ## License
 
 MIT.
