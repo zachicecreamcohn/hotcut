@@ -56,20 +56,9 @@ async function runInit(): Promise<void> {
 }
 
 function printCompletionHint(): void {
-  const shell = basename(process.env.SHELL ?? "");
-  let cmd: string | null = null;
-  if (shell === "zsh") {
-    cmd = 'echo \'eval "$(hotcut completions zsh)"\' >> ~/.zshrc';
-  } else if (shell === "bash") {
-    cmd = 'echo \'eval "$(hotcut completions bash)"\' >> ~/.bashrc';
-  } else if (shell === "fish") {
-    cmd = "hotcut completions fish > ~/.config/fish/completions/hotcut.fish";
-  }
-  if (!cmd) return;
+  if (basename(process.env.SHELL ?? "") !== "zsh") return;
   process.stdout.write(
     "\ntip: enable tab-completion for worktree names with:\n" +
-      "  " +
-      cmd +
-      "\n",
+      "  echo 'eval \"$(hotcut completions zsh)\"' >> ~/.zshrc\n",
   );
 }

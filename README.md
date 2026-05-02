@@ -131,12 +131,7 @@ Every command auto-starts the daemon over a Unix socket if it isn't already runn
 ### Tab completion
 
 ```sh
-# zsh
-echo 'eval "$(hotcut completions zsh)"'  >> ~/.zshrc  && exec zsh
-# bash
-echo 'eval "$(hotcut completions bash)"' >> ~/.bashrc && exec bash
-# fish
-hotcut completions fish > ~/.config/fish/completions/hotcut.fish
+echo 'eval "$(hotcut completions zsh)"' >> ~/.zshrc && exec zsh
 ```
 
 After that, `hotcut <TAB>` lists worktrees and `hotcut foo-<TAB>` cycles through `foo-*`.
