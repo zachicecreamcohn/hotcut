@@ -95,7 +95,7 @@ async function forkDaemon(paths: StatePaths, opts: EnsureDaemonOpts): Promise<vo
   const useTsx = target.endsWith(".ts");
 
   const fh = await open(paths.daemonLogPath, "a", 0o600);
-  const out = fh.createWriteStream();
+  const out = fh.createWriteStream({ autoClose: true });
 
   const cmd = useTsx
     ? resolve(here, "..", "..", "node_modules", ".bin", "tsx")
@@ -108,4 +108,9 @@ async function forkDaemon(paths: StatePaths, opts: EnsureDaemonOpts): Promise<vo
     env: process.env,
   });
   child.unref();
+
+  // The child inherits its own dup'd fd; we no longer need the parent's.
+  // End the stream (which closes the underlying FileHandle) so we don't leak it
+  // to the GC and trigger DEP0137.
+  out.end();
 }
