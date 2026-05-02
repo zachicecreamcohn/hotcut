@@ -4,6 +4,7 @@ import { discoverSources } from "../discovery/discovery.js";
 import { detectProject } from "../init/detect.js";
 import { writeInitConfig, ConfigExistsError } from "../init/write.js";
 import { logError } from "../util/log.js";
+import { basename } from "node:path";
 
 export function initCommand(): Command {
   return new Command("init")
@@ -49,4 +50,25 @@ async function runInit(): Promise<void> {
       process.stdout.write("(also available: " + others + ")\n");
     }
   }
+
+  printCompletionHint();
+}
+
+function printCompletionHint(): void {
+  const shell = basename(process.env.SHELL ?? "");
+  let cmd: string | null = null;
+  if (shell === "zsh") {
+    cmd = 'echo \'eval "$(hotcut completions zsh)"\' >> ~/.zshrc';
+  } else if (shell === "bash") {
+    cmd = 'echo \'eval "$(hotcut completions bash)"\' >> ~/.bashrc';
+  } else if (shell === "fish") {
+    cmd = "hotcut completions fish > ~/.config/fish/completions/hotcut.fish";
+  }
+  if (!cmd) return;
+  process.stdout.write(
+    "\ntip: enable tab-completion for worktree names with:\n" +
+      "  " +
+      cmd +
+      "\n",
+  );
 }
