@@ -3,6 +3,7 @@ import { Command } from "commander";
 import { logError } from "../util/log.js";
 import { runCut } from "./cmd-cut.js";
 import { statusCommand } from "./cmd-status.js";
+import { warmAllCommand } from "./cmd-warm-all.js";
 import { daemonCommand } from "./cmd-daemon.js";
 import { logsCommand } from "./cmd-logs.js";
 import { initCommand } from "./cmd-init.js";
@@ -11,6 +12,7 @@ import { completionsCommand } from "./cmd-complete.js";
 
 const KNOWN_VERBS = new Set([
   "completions",
+  "warm-all",
   "init",
   "status",
   "logs",
@@ -44,6 +46,7 @@ async function main(): Promise<void> {
 
   program.addCommand(initCommand());
   program.addCommand(statusCommand());
+  program.addCommand(warmAllCommand());
   program.addCommand(logsCommand());
   program.addCommand(stopCommand());
   program.addCommand(daemonCommand());

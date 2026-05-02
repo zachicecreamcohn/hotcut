@@ -23,16 +23,6 @@ hotcut PL-456     # cut to .worktree/PL-456
 hotcut status     # see all live worktrees and their state
 ```
 
-## Concepts (broadcast switcher metaphor)
-
-| Broadcast term | hotcut meaning                                                     |
-| -------------- | ------------------------------------------------------------------ |
-| **Source**     | A worktree with a dev server running                               |
-| **Program**    | The active source — what `localhost:8080` is currently routed to   |
-| **Preview**    | A source that's warm and ready but not currently on program        |
-| **Take / Cut** | Switch program to a different source (instant)                     |
-| **Tally**      | Status indicator — which sources are live, warm, cold              |
-| **Bus**        | The proxy that routes program to the browser                       |
 
 ## Quick start
 
@@ -120,6 +110,7 @@ A future tmux integration (where hotcut spawns each source inside a pane it owns
 hotcut <name>             # cut program to a worktree
 hotcut status [-w]        # see what's live (-w to watch)
 hotcut logs <name> [-f]   # tail a source
+hotcut warm-all           # pre-warm every worktree
 hotcut init               # write hotcut.toml
 hotcut stop               # stop the daemon (tears down everything)
 ```

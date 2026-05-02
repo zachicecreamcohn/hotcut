@@ -11,6 +11,7 @@ export const RESERVED_NAMES = new Set([
   "init",
   "status",
   "logs",
+  "warm-all",
   "stop",
   "daemon",
 ]);
