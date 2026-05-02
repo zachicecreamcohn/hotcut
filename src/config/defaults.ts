@@ -9,6 +9,7 @@ export const DEFAULTS = {
   run: {
     shutdownTimeout: "5s",
     restartOnCrash: true,
+    warmConcurrency: 4,
   },
   ports: {
     rangeStart: 41000,

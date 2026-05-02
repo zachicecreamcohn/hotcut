@@ -1,6 +1,7 @@
 import type { ProjectConfig } from "../config/schema.js";
 import type { DiscoveredSource } from "../discovery/discovery.js";
 import type { LogBuffer } from "./log-buffer.js";
+import { runWithConcurrency } from "../util/concurrency.js";
 import { findFreePort } from "./port.js";
 import { Source } from "./source.js";
 import type { SourceState } from "./state.js";
@@ -78,10 +79,18 @@ export class Supervisor {
     this.notify(source);
   }
 
-  /** Warm every cold source in parallel. Resolves once each has settled (warm or failed). */
+  /**
+   * Warm every cold source. Resolves once each has settled (warm or failed).
+   * Bounded by `config.run.warm_concurrency` to avoid overwhelming the host
+   * when warming many heavyweight dev servers at once.
+   */
   async upAll(): Promise<void> {
-    await Promise.allSettled(
-      this.list().map((s) => (s.state === "cold" ? s.up() : Promise.resolve())),
+    const targets = this.list().filter((s) => s.state === "cold");
+    await runWithConcurrency(this.config.run.warm_concurrency, targets, (s) =>
+      s.up().catch(() => {
+        // up() already records failure on the source; swallow here so other
+        // workers keep going.
+      }),
     );
   }
 
@@ -100,3 +109,4 @@ export class Supervisor {
     for (const l of this.listeners) l(entry);
   }
 }
+

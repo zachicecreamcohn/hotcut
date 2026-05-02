@@ -16,6 +16,12 @@ export function warmAllCommand(): Command {
       const fetchStatus = (): Promise<TallyResult> =>
         client.request<TallyResult>("status", { projectRoot: project.root });
 
+      // Render the initial cold state immediately so the user sees the list
+      // before warming begins. Otherwise nothing is printed until the first
+      // poll fires (~400ms in).
+      const initial = await fetchStatus().catch(() => null);
+      if (initial) renderer.render(initial.projects);
+
       const upPromise = client
         .request<UpResult>("up", { projectRoot: project.root })
         .catch(exitForProtocolError) as Promise<UpResult>;
@@ -41,6 +47,12 @@ export function warmAllCommand(): Command {
       const result = await upPromise;
       stop = true;
       await loopPromise;
+
+      // After `up` resolves, fetch and render one final time so the user sees
+      // the terminal state of every source (the polling loop may have exited
+      // mid-sleep, missing the last transition).
+      const final = await fetchStatus().catch(() => null);
+      if (final) renderer.render(final.projects);
 
       for (const f of result.failed) {
         log("failed " + f.name + ": " + f.error.split("\n")[0]);

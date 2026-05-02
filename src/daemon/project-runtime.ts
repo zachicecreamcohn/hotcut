@@ -12,6 +12,7 @@ import {
   ProtocolError,
 } from "../proto/errors.js";
 import { log, logError } from "../util/log.js";
+import { runWithConcurrency } from "../util/concurrency.js";
 import type {
   CutResult,
   DownResult,
@@ -109,23 +110,25 @@ export class ProjectRuntime {
     const started: string[] = [];
     const alreadyWarm: string[] = [];
     const failed: { name: string; error: string }[] = [];
-    await Promise.all(
-      targets.map(async (s) => {
-        if (s.state === "warm") {
-          alreadyWarm.push(s.name);
-          return;
-        }
-        try {
-          await s.up();
-          started.push(s.name);
-        } catch (err) {
-          failed.push({
-            name: s.name,
-            error: err instanceof Error ? err.message : String(err),
-          });
-        }
-      }),
-    );
+    const work = targets.map((s) => async () => {
+      if (s.state === "warm") {
+        alreadyWarm.push(s.name);
+        return;
+      }
+      try {
+        await s.up();
+        started.push(s.name);
+      } catch (err) {
+        failed.push({
+          name: s.name,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    });
+    // For a named single-source `up`, run directly. For bulk warm, bound by
+    // config.run.warm_concurrency to avoid melting the host.
+    const limit = name ? targets.length : this.config.run.warm_concurrency;
+    await runWithConcurrency(Math.max(1, limit), work, (fn) => fn());
     return { started, alreadyWarm, failed };
   }
 
@@ -239,8 +242,10 @@ export class ProjectRuntime {
     return this.supervisor.list().map((s) => s.name);
   }
 
-  sourcePorts(): { name: string; port: number }[] {
-    return this.supervisor.list().map((s) => ({ name: s.name, port: s.port }));
+  sourcePorts(): { name: string; port: number; pid: number | null }[] {
+    return this.supervisor
+      .list()
+      .map((s) => ({ name: s.name, port: s.port, pid: s.pid }));
   }
 
   private requireSource(name: string): Source {

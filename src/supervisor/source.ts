@@ -51,6 +51,14 @@ export class Source {
     return this.machine.state;
   }
 
+  /**
+   * PID of the detached child shell (also the PGID of the worktree's process
+   * group, since we spawn with `detached: true`). null if no child is alive.
+   */
+  get pid(): number | null {
+    return this.child?.pid ?? null;
+  }
+
   onStateChange(listener: (e: { from: SourceState; to: SourceState }) => void): () => void {
     this.machine.on("change", listener);
     return () => this.machine.off("change", listener);

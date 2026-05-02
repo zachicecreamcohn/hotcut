@@ -116,6 +116,10 @@ export function buildHandlers(ctx: HandlerCtx): BuiltHandlers {
         root: p.root,
         config: parsed.data,
         logsDir: ctx.logsDir,
+        // Persist on every supervisor state change so the on-disk state.json
+        // tracks live PIDs/ports. A future daemon can read those to clean up
+        // orphans if this one dies without a clean shutdown.
+        onChange: () => void ctx.persist(),
       });
       try {
         await runtime.start();

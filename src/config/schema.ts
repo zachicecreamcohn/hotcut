@@ -18,6 +18,7 @@ export const ProjectConfig = z.object({
     cmd: z.string().min(1),
     shutdown_timeout: Duration.default(DEFAULTS.run.shutdownTimeout),
     restart_on_crash: z.boolean().default(DEFAULTS.run.restartOnCrash),
+    warm_concurrency: z.number().int().min(1).default(DEFAULTS.run.warmConcurrency),
     ready: ReadyCheck.default({
       http: DEFAULTS.ready.httpPath,
       timeout: DEFAULTS.ready.timeout,

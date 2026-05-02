@@ -5,6 +5,12 @@ import { z } from "zod";
 export const PersistedSource = z.object({
   name: z.string(),
   port: z.number().int(),
+  /**
+   * PID of the detached process group leader for this source's dev server.
+   * Persisted so that, if the daemon dies without a clean shutdown, a fresh
+   * daemon can SIGKILL these on startup to reclaim ports and avoid orphans.
+   */
+  pid: z.number().int().nullable().optional(),
 });
 export type PersistedSource = z.infer<typeof PersistedSource>;
 

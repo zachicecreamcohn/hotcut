@@ -1,11 +1,40 @@
 import { ERROR_CODES, ProtocolError } from "../proto/errors.js";
 import { ensureStateDir, resolveStatePaths, type StatePaths } from "../state/paths.js";
 import { isAlive, readPidFile, removePidFile, writePidFile } from "../state/pid.js";
-import { readState, writeStateAtomic } from "../state/state-file.js";
+import { readState, writeStateAtomic, type PersistedState } from "../state/state-file.js";
 import { log, logError } from "../util/log.js";
 import { buildHandlers } from "./handlers.js";
 import { startSocketServer, type SocketServer } from "./socket-server.js";
 import { DaemonState } from "./state.js";
+
+function reapOrphans(persisted: PersistedState): void {
+  const seen = new Set<number>();
+  let killed = 0;
+  for (const project of persisted.projects) {
+    for (const src of project.sources) {
+      const pid = src.pid;
+      if (typeof pid !== "number" || pid <= 1 || seen.has(pid)) continue;
+      seen.add(pid);
+      // Try the whole process group first (sources are spawned with
+      // `detached: true`, so pid == pgid). Fall back to the lone pid if the
+      // group is already gone.
+      try {
+        process.kill(-pid, "SIGKILL");
+        killed++;
+      } catch {
+        try {
+          process.kill(pid, "SIGKILL");
+          killed++;
+        } catch {
+          // already dead
+        }
+      }
+    }
+  }
+  if (killed > 0) {
+    log("reaped " + killed + " orphan worktree process group(s) from previous daemon");
+  }
+}
 
 const VERSION = "0.0.1";
 
@@ -40,6 +69,12 @@ export async function runDaemon(opts: RunDaemonOpts = {}): Promise<void> {
         " persisted project(s); will be re-registered on first command",
     );
   }
+
+  // If a previous daemon died without running its shutdown handler, the
+  // detached process groups it spawned are still alive — orphaned, holding
+  // ports, and causing chaos for the new daemon. Kill them now before we
+  // bind anything.
+  reapOrphans(persisted);
 
   const persist = async (): Promise<void> => {
     try {
