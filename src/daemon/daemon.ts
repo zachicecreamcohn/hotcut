@@ -72,14 +72,16 @@ export async function runDaemon(opts: RunDaemonOpts = {}): Promise<void> {
     await Promise.all(
       [...state.projects.values()].map((p) => p.shutdown().catch(() => {})),
     );
-    await persist();
-    await removePidFile(paths.pidPath).catch(() => {});
-    try {
-      const { unlink } = await import("node:fs/promises");
-      await unlink(paths.sockPath);
-    } catch {
-      // already gone
-    }
+    state.projects.clear();
+    // Clean shutdown wipes persisted state. A crash leaves it behind so a
+    // future restart could pick up where we left off (slice 4+ feature).
+    const { unlink, rm } = await import("node:fs/promises");
+    await Promise.all([
+      removePidFile(paths.pidPath).catch(() => {}),
+      unlink(paths.sockPath).catch(() => {}),
+      unlink(paths.stateFilePath).catch(() => {}),
+      rm(paths.logsDir, { recursive: true, force: true }).catch(() => {}),
+    ]);
     process.exit(0);
   };
 

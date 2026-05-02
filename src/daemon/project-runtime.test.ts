@@ -87,6 +87,20 @@ describe("ProjectRuntime", () => {
     assert.deepEqual(new Set(downRes.stopped), new Set(["A", "B"]));
   });
 
+  it("auto-promotes the first source that warms to program", async () => {
+    const config = await makeConfig();
+    runtime = new ProjectRuntime({ root: dir, config, portRangeStart: PORT_RANGE_START });
+    await runtime.start();
+    const discovered = await discoverSources(dir, config);
+    for (const d of discovered) await runtime.register(d);
+
+    assert.equal(runtime.tally().program, null);
+    await runtime.up();
+
+    const program = runtime.tally().program;
+    assert.ok(program === "A" || program === "B", "expected A or B, got " + program);
+  });
+
   it("cut on missing source throws SOURCE_NOT_FOUND", async () => {
     const config = await makeConfig("true");
     runtime = new ProjectRuntime({ root: dir, config, portRangeStart: PORT_RANGE_START });

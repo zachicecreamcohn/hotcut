@@ -41,7 +41,14 @@ export class ProjectRuntime {
       portRangeStart: opts.portRangeStart,
     });
     this.bus = new Bus();
-    this.supervisor.onChange(() => this.onChange?.());
+    this.supervisor.onChange((entry) => {
+      // If a source warmed up and nothing is on program, promote it.
+      // This mirrors slice 2's "first warm source becomes program" behavior.
+      if (entry.state === "warm" && this.bus.programName() === null) {
+        this.bus.cut(entry.source);
+      }
+      this.onChange?.();
+    });
     this.bus.onCut(() => this.onChange?.());
   }
 
