@@ -20,7 +20,7 @@ The idea behind hotcut is to run a dev server per worktree, all of them warm at 
 # i.e. `.worktree/PL-123` is the source `PL-123`.
 hotcut PL-123     # cut to .worktree/PL-123
 hotcut PL-456     # cut to .worktree/PL-456
-hotcut tally      # see all live worktrees and their status
+hotcut status     # see all live worktrees and their state
 ```
 
 ## Concepts (broadcast switcher metaphor)
@@ -47,7 +47,7 @@ hotcut init
 git worktree add .worktree/PL-123 -b zach/PL-123
 
 # hotcut auto-discovers it
-hotcut tally
+hotcut status
 # polypad
 #   ● PL-123    :41001  ready    ← on program
 #   ● PL-456    :41002  ready
@@ -63,7 +63,7 @@ Open `http://localhost:8080` in your browser. It always points at whatever's on 
 
 ### Auto-discovery
 
-hotcut watches `.worktree/` (configurable). Add a worktree with `git worktree add` and it appears in the tally automatically. Delete a worktree with `git worktree remove` and hotcut notices, kills its dev server, and frees the port — no orphaned processes for branches I've cleaned up.
+hotcut watches `.worktree/` (configurable). Add a worktree with `git worktree add` and it appears in `hotcut status` automatically. Delete a worktree with `git worktree remove` and hotcut notices, kills its dev server, and frees the port — no orphaned processes for branches I've cleaned up.
 
 ### Lazy warm
 
@@ -118,7 +118,7 @@ A future tmux integration (where hotcut spawns each source inside a pane it owns
 
 ```sh
 hotcut <name>             # cut program to a worktree
-hotcut tally [-w]         # see what's live (-w to watch)
+hotcut status [-w]        # see what's live (-w to watch)
 hotcut logs <name> [-f]   # tail a source
 hotcut init               # write hotcut.toml
 hotcut stop               # stop the daemon (tears down everything)
@@ -126,7 +126,7 @@ hotcut stop               # stop the daemon (tears down everything)
 
 Every command auto-starts the daemon over a Unix socket if it isn't already running.
 
-`tally` and `logs` accept `--json` for tooling. `hotcut daemon` runs the daemon in the foreground for debugging — you don't normally need it.
+`status` and `logs` accept `--json` for tooling. `hotcut daemon` runs the daemon in the foreground for debugging — you don't normally need it.
 
 ### Tab completion
 

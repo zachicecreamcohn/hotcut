@@ -75,9 +75,9 @@ afterEach(async () => {
 });
 
 describe("cli integration", () => {
-  it("auto-starts daemon, runs tally, cuts to warm sources, and stops", async () => {
-    const tally1 = await runCli(["tally"]);
-    assert.match(tally1.stderr, /\bp\b/);
+  it("auto-starts daemon, runs status, cuts to warm sources, and stops", async () => {
+    const status1 = await runCli(["status"]);
+    assert.match(status1.stderr, /\bp\b/);
 
     await runCli(["A"]);
     const r1 = await fetch("http://127.0.0.1:" + proxyPort + "/");
@@ -87,10 +87,10 @@ describe("cli integration", () => {
     const r2 = await fetch("http://127.0.0.1:" + proxyPort + "/");
     assert.equal(await r2.text(), "hello from B");
 
-    const tally2 = await runCli(["tally", "--json"]);
-    const tally = JSON.parse(tally2.stdout);
-    assert.equal(tally.projects.length, 1);
-    const states = tally.projects[0].sources.map((s: { state: string }) => s.state);
+    const status2 = await runCli(["status", "--json"]);
+    const status = JSON.parse(status2.stdout);
+    assert.equal(status.projects.length, 1);
+    const states = status.projects[0].sources.map((s: { state: string }) => s.state);
     assert.ok(states.includes("warm"));
 
     await runCli(["stop"]);
@@ -126,7 +126,7 @@ describe("cli integration", () => {
   });
 
   it("auto-discovers new worktrees and removes deleted ones", async () => {
-    await runCli(["tally"]);
+    await runCli(["status"]);
 
     // Add a third worktree on the fly.
     const newWt = join(project, ".worktree", "C");
@@ -134,7 +134,7 @@ describe("cli integration", () => {
     await writeFile(join(newWt, ".git"), "gitdir: /x/.git/worktrees/C\n");
 
     await waitFor(async () => {
-      const r = await runCli(["tally", "--json"]);
+      const r = await runCli(["status", "--json"]);
       const t = JSON.parse(r.stdout);
       return t.projects[0].sources.find((s: { name: string }) => s.name === "C");
     });
@@ -142,7 +142,7 @@ describe("cli integration", () => {
     // Remove an existing one and verify it disappears.
     await rm(join(project, ".worktree", "A"), { recursive: true, force: true });
     await waitFor(async () => {
-      const r = await runCli(["tally", "--json"]);
+      const r = await runCli(["status", "--json"]);
       const t = JSON.parse(r.stdout);
       const found = t.projects[0].sources.find(
         (s: { name: string }) => s.name === "A",

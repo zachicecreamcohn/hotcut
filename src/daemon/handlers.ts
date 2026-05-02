@@ -48,7 +48,7 @@ export interface BuiltHandlers {
 
 export function buildHandlers(ctx: HandlerCtx): BuiltHandlers {
   const unary: Record<string, MethodHandler> = {
-    [METHODS.tally]: async (params): Promise<TallyResult> => {
+    [METHODS.status]: async (params): Promise<TallyResult> => {
       const p = TallyParams.parse(params ?? {});
       let runtimes: ProjectRuntime[];
       if (p.allProjects) {
@@ -59,7 +59,7 @@ export function buildHandlers(ctx: HandlerCtx): BuiltHandlers {
       } else {
         runtimes = [...ctx.state.projects.values()];
       }
-      return { projects: runtimes.map((r) => r.tally()) };
+      return { projects: runtimes.map((r) => r.status()) };
     },
 
     [METHODS.cut]: async (params): Promise<CutResult> => {

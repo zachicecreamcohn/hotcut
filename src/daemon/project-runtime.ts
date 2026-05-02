@@ -180,7 +180,7 @@ export class ProjectRuntime {
     };
   }
 
-  tally(): ProjectStatusDto {
+  status(): ProjectStatusDto {
     const program = this.bus.programName();
     const sources: SourceStatusDto[] = this.supervisor.list().map((s) => ({
       name: s.name,

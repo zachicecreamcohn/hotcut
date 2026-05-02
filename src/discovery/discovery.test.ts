@@ -48,7 +48,7 @@ describe("discoverSources", () => {
     await mkdir(join(dir, ".worktree"));
     await mkdir(join(dir, ".worktree", "PL-1"));
     await mkdir(join(dir, ".worktree", ".hidden"));
-    await mkdir(join(dir, ".worktree", "tally"));   // reserved
+    await mkdir(join(dir, ".worktree", "status"));  // reserved
     await mkdir(join(dir, ".worktree", "skip-me"));
     await writeFile(join(dir, ".worktree", "README.md"), "x");
 

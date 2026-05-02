@@ -50,20 +50,20 @@ afterEach(async () => {
 });
 
 describe("ProjectRuntime", () => {
-  it("registers sources and reports tally", async () => {
+  it("registers sources and reports status", async () => {
     const config = await makeConfig();
     runtime = new ProjectRuntime({ root: dir, config, portRangeStart: PORT_RANGE_START });
     await runtime.start();
     const discovered = await discoverSources(dir, config);
     for (const d of discovered) await runtime.register(d);
 
-    const t = runtime.tally();
+    const t = runtime.status();
     assert.equal(t.sources.length, 2);
     assert.equal(t.sources.every((s) => s.state === "cold"), true);
     assert.equal(t.program, null);
   });
 
-  it("up + cut + tally + down round trip", async () => {
+  it("up + cut + status + down round trip", async () => {
     const config = await makeConfig();
     runtime = new ProjectRuntime({ root: dir, config, portRangeStart: PORT_RANGE_START });
     await runtime.start();
@@ -77,7 +77,7 @@ describe("ProjectRuntime", () => {
     const cutRes = await runtime.cut("A");
     assert.equal(cutRes.program, "A");
 
-    const t = runtime.tally();
+    const t = runtime.status();
     assert.equal(t.program, "A");
     const a = t.sources.find((s) => s.name === "A")!;
     assert.equal(a.onProgram, true);
@@ -94,10 +94,10 @@ describe("ProjectRuntime", () => {
     const discovered = await discoverSources(dir, config);
     for (const d of discovered) await runtime.register(d);
 
-    assert.equal(runtime.tally().program, null);
+    assert.equal(runtime.status().program, null);
     await runtime.up();
 
-    const program = runtime.tally().program;
+    const program = runtime.status().program;
     assert.ok(program === "A" || program === "B", "expected A or B, got " + program);
   });
 

@@ -9,7 +9,7 @@ export interface DiscoveredSource {
 
 export const RESERVED_NAMES = new Set([
   "init",
-  "tally",
+  "status",
   "logs",
   "stop",
   "daemon",

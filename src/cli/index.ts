@@ -2,7 +2,7 @@
 import { Command } from "commander";
 import { logError } from "../util/log.js";
 import { runCut } from "./cmd-cut.js";
-import { tallyCommand } from "./cmd-tally.js";
+import { statusCommand } from "./cmd-status.js";
 import { daemonCommand } from "./cmd-daemon.js";
 import { logsCommand } from "./cmd-logs.js";
 import { initCommand } from "./cmd-init.js";
@@ -12,7 +12,7 @@ import { completionsCommand } from "./cmd-complete.js";
 const KNOWN_VERBS = new Set([
   "completions",
   "init",
-  "tally",
+  "status",
   "logs",
   "stop",
   "daemon",
@@ -43,7 +43,7 @@ async function main(): Promise<void> {
     .version("0.0.1");
 
   program.addCommand(initCommand());
-  program.addCommand(tallyCommand());
+  program.addCommand(statusCommand());
   program.addCommand(logsCommand());
   program.addCommand(stopCommand());
   program.addCommand(daemonCommand());

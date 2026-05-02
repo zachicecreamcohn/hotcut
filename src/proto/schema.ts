@@ -141,7 +141,7 @@ export const ResponseEnvelope = z.object({
 export type ResponseEnvelope = z.infer<typeof ResponseEnvelope>;
 
 export const METHODS = {
-  tally: "tally",
+  status: "status",
   cut: "cut",
   up: "up",
   down: "down",

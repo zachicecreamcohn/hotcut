@@ -3,28 +3,28 @@ import type { TallyResult } from "../proto/schema.js";
 import { connectDaemon, registerProject, resolveProject, exitForProtocolError } from "./client-helpers.js";
 import { TallyRenderer } from "./tally.js";
 
-interface TallyOptions {
+interface StatusOptions {
   json?: boolean;
   watch?: boolean;
 }
 
-export function tallyCommand(): Command {
-  return new Command("tally")
+export function statusCommand(): Command {
+  return new Command("status")
     .description("Show source status for the current project")
     .option("--json", "machine-readable output")
     .option("-w, --watch", "re-render on change")
-    .action(async (opts: TallyOptions) => {
-      await runTally(opts);
+    .action(async (opts: StatusOptions) => {
+      await runStatus(opts);
     });
 }
 
-async function runTally(opts: TallyOptions): Promise<void> {
+async function runStatus(opts: StatusOptions): Promise<void> {
   const project = await resolveProject();
   const client = await connectDaemon();
   await registerProject(client, project).catch(exitForProtocolError);
 
   const fetchOnce = async (): Promise<TallyResult> => {
-    return client.request<TallyResult>("tally", { projectRoot: project.root });
+    return client.request<TallyResult>("status", { projectRoot: project.root });
   };
 
   const renderer = new TallyRenderer();

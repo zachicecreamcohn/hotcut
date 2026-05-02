@@ -10,13 +10,13 @@ import {
 
 describe("proto schema", () => {
   it("validates a request envelope", () => {
-    const r = RequestEnvelope.parse({ id: "abc", method: "tally" });
+    const r = RequestEnvelope.parse({ id: "abc", method: "status" });
     assert.equal(r.id, "abc");
-    assert.equal(r.method, "tally");
+    assert.equal(r.method, "status");
   });
 
   it("rejects a request without id", () => {
-    assert.throws(() => RequestEnvelope.parse({ method: "tally" }));
+    assert.throws(() => RequestEnvelope.parse({ method: "status" }));
   });
 
   it("validates a successful response envelope", () => {
