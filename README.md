@@ -55,6 +55,8 @@ ready = { http = "/", timeout = "30s" }
 PORT = "$HOTCUT_PORT"
 ```
 
+Each warmed worktree binds its own port (allocated by hotcut and exposed as `$HOTCUT_PORT`); the proxy at `proxy_port` then routes to whichever worktree is "on program." Your dev server must read its port from the environment; otherwise, every worktree may fight over the same port and only the first will start. Most node frameworks already honor `process.env.PORT`, so you can map it via the `[env]` block as shown.
+
 ## Shell integration
 
 Auto-cut on tmux session change (assumes session name = worktree name):
