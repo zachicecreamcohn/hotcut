@@ -1,13 +1,7 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
-import { Bus } from "../bus/bus.js";
-import type { Source } from "../supervisor/source.js";
-import type { SourceState } from "../supervisor/state.js";
+import type { ProjectStatusDto } from "../proto/schema.js";
 import { TallyRenderer } from "./tally.js";
-
-function fakeSource(name: string, state: SourceState, port: number): Source {
-  return { name, port, state } as unknown as Source;
-}
 
 class CapturingStream {
   chunks: string[] = [];
@@ -25,18 +19,21 @@ describe("TallyRenderer", () => {
   it("renders a header and one line per source", () => {
     const out = new CapturingStream();
     const renderer = new TallyRenderer({
-      projectName: "polypad",
       out: out as unknown as NodeJS.WritableStream,
     });
-    const bus = new Bus();
-    const sources = [
-      fakeSource("PL-123", "warm", 41000),
-      fakeSource("PL-456", "starting", 41001),
-      fakeSource("PL-789", "cold", 0),
-    ];
-    bus.cut(sources[0]!);
+    const project: ProjectStatusDto = {
+      name: "polypad",
+      root: "/x",
+      program: "PL-123",
+      proxyPort: 8080,
+      sources: [
+        { name: "PL-123", state: "warm", port: 41000, onProgram: true },
+        { name: "PL-456", state: "starting", port: 41001, onProgram: false },
+        { name: "PL-789", state: "cold", port: null, onProgram: false },
+      ],
+    };
 
-    renderer.render(sources, bus);
+    renderer.render([project]);
     const lines = out.text.split("\n").filter(Boolean);
     assert.equal(lines.length, 4); // header + 3 sources
     assert.equal(lines[0], "polypad");

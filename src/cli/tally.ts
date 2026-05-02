@@ -1,15 +1,13 @@
-import type { Bus } from "../bus/bus.js";
-import type { Source } from "../supervisor/source.js";
-import type { SourceState } from "../supervisor/state.js";
+import type { ProjectStatusDto, SourceStatusDto } from "../proto/schema.js";
 
-const STATE_GLYPH: Record<SourceState, string> = {
+const STATE_GLYPH: Record<SourceStatusDto["state"], string> = {
   cold: "○",
   starting: "◐",
   warm: "●",
   failed: "✖",
 };
 
-const STATE_LABEL: Record<SourceState, string> = {
+const STATE_LABEL: Record<SourceStatusDto["state"], string> = {
   cold: "cold",
   starting: "warming",
   warm: "ready",
@@ -17,30 +15,44 @@ const STATE_LABEL: Record<SourceState, string> = {
 };
 
 export interface TallyOpts {
-  projectName: string;
   out?: NodeJS.WritableStream;
 }
 
 /**
- * Renders a live status table to stderr.
- * Call .render() to draw, .clear() before printing other output.
+ * Renders a project status DTO (as returned by the daemon) to a stream.
+ * Slice 3+ no longer redraws — every render is a fresh write. Callers wanting
+ * live updates poll the daemon and re-render.
  */
 export class TallyRenderer {
   private readonly out: NodeJS.WritableStream;
-  private readonly projectName: string;
-  private lastLines = 0;
   private readonly isTty: boolean;
+  private lastLines = 0;
 
-  constructor(opts: TallyOpts) {
+  constructor(opts: TallyOpts = {}) {
     this.out = opts.out ?? process.stderr;
-    this.projectName = opts.projectName;
     this.isTty = (this.out as NodeJS.WriteStream).isTTY === true;
   }
 
-  render(sources: readonly Source[], bus: Bus): void {
+  render(projects: readonly ProjectStatusDto[]): void {
     if (this.isTty) this.eraseLast();
-    const lines = this.format(sources, bus);
-    for (const l of lines) this.out.write(`${l}\n`);
+    const lines: string[] = [];
+    if (projects.length === 0) {
+      lines.push("(no projects registered)");
+    }
+    for (const p of projects) {
+      lines.push(p.name);
+      p.sources.forEach((s, i) => {
+        const idx = String(i + 1).padStart(2);
+        const glyph = STATE_GLYPH[s.state];
+        const label = STATE_LABEL[s.state];
+        const port = s.port == null ? "—" : ":" + s.port;
+        const arrow = s.onProgram ? "  ← on program" : "";
+        lines.push(
+          "  " + idx + ") " + glyph + " " + s.name.padEnd(10) + " " + port.padEnd(7) + " " + label.padEnd(8) + arrow,
+        );
+      });
+    }
+    for (const l of lines) this.out.write(l + "\n");
     this.lastLines = this.isTty ? lines.length : 0;
   }
 
@@ -54,22 +66,5 @@ export class TallyRenderer {
     for (let i = 0; i < this.lastLines; i++) {
       this.out.write("\x1b[1A\x1b[2K");
     }
-  }
-
-  private format(sources: readonly Source[], bus: Bus): string[] {
-    const program = bus.programName();
-    const lines: string[] = [this.projectName];
-    sources.forEach((s, i) => {
-      const onProgram = s.name === program;
-      const idx = String(i + 1).padStart(2);
-      const glyph = STATE_GLYPH[s.state];
-      const label = STATE_LABEL[s.state];
-      const port = s.state === "cold" ? "—" : `:${s.port}`;
-      const arrow = onProgram ? "  ← on program" : "";
-      lines.push(
-        `  ${idx}) ${glyph} ${s.name.padEnd(10)} ${port.padEnd(7)} ${label.padEnd(8)}${arrow}`,
-      );
-    });
-    return lines;
   }
 }
