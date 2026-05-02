@@ -1,4 +1,6 @@
 import { Command } from "commander";
+import { loadConfig } from "../config/load.js";
+import { discoverSources } from "../discovery/discovery.js";
 import { detectProject } from "../init/detect.js";
 import { writeInitConfig, ConfigExistsError } from "../init/write.js";
 import { logError } from "../util/log.js";
@@ -28,4 +30,23 @@ async function runInit(): Promise<void> {
     process.stdout.write(note + "\n");
   }
   process.stdout.write("wrote " + path + "\n");
+
+  const config = await loadConfig(root);
+  const sources = await discoverSources(root, config, { requireGit: true });
+  process.stdout.write("\n");
+  if (sources.length === 0) {
+    process.stdout.write(
+      "next: create a worktree, then cut to it:\n" +
+        "  git worktree add " +
+        config.project.worktree_root +
+        "/<name> -b <branch>\n" +
+        "  hotcut <name>\n",
+    );
+  } else {
+    process.stdout.write("next: hotcut " + sources[0]!.name + "\n");
+    if (sources.length > 1) {
+      const others = sources.slice(1).map((s) => s.name).join(", ");
+      process.stdout.write("(also available: " + others + ")\n");
+    }
+  }
 }
