@@ -2,18 +2,18 @@
 
 > Cut to any worktree. Live.
 
-**hotcut** keeps a dev server running for every git worktree at the same time and puts a single proxy in front of them, so I can switch between branches without killing and restarting anything. It works like a TV broadcast switcher: every worktree is a live source, one of them is on program at any time, and a cut between them is instant.
+**hotcut** keeps a dev server running for every git worktree at the same time and puts a single proxy in front of them, so I can switch between branches without killing and restarting anything. It works like a TV broadcast switcher: every worktree is a live source, one of them is "on program" at any time, and a cut between them is instant.
 
 
 ## The problem
 
-Git worktrees are the base of my dev flow. I work across multiple branches. Each branch gets a worktree (usually at `.worktree/<ticket-name>`) and a tmux session. When I work on a given ticket, I switch to that session/worktree and, in a tmux window, spin up the dev server. This works great but to avoid keeping track of a bunch of ports and which port is associated with which branch, I kill the server in the active session/worktree so I can then start the dev server in the branch/session/worktree I'm switching to.
+Git worktrees are the base of my dev flow. I work across multiple branches. Each branch gets a worktree (usually at `.worktree/<ticket-name>`) and a tmux session. When I worked on a given ticket, I would switch to that session/worktree and, in a tmux window, spin up the dev server. This worked great but to avoid keeping track of a bunch of ports and which port is associated with which branch, I would kill the server in the active session/worktree so I could then start the dev server in the branch/session/worktree I was switching to.
 
 The kill-and-restart cycle adds up. Every switch is a cold boot, and it makes switching branches to peek at something take longer than I'd like.
 
-## The fix
+## This project fixes that by making switching free and (almost) instant
 
-The idea behind hotcut is to run a dev server per worktree, all of them warm at the same time, and put a stable proxy (e.g.`localhost:8080`) in front. Whichever worktree is "on program" is the one the proxy routes to. Switching is a sub-second cut, not a cold boot, and I never have to think about ports.
+The idea behind hotcut is to always be running a dev server per worktree, all of them warm at the same time, and put a stable proxy (e.g.`localhost:8080`) in front. Whichever worktree is "on program" is the one the proxy routes to. Switching is a sub-second cut, not a cold boot, and I never have to think about ports.
 
 ```sh
 # the name after `hotcut` is the worktree's directory name,
@@ -104,11 +104,6 @@ hotcut logs ticket-123 -f     # follow live (like tail -f)```
 
 The "warming up" holding page in the browser tells you the source is booting; a future version will surface log lines live in that page so you can watch compile output without leaving the browser.
 
-### Tradeoffs vs. running the server in tmux yourself
-
-The console for each warm source isn't an interactive terminal — there's no TTY attached, so you can't type into it. If your dev command has a REPL or expects keyboard input ("press `r` to restart"), that doesn't work in v1. Most Node-style dev servers only emit logs, so it's fine; if your flow depends on stdin, fall back to the tmux-and-manual-restart way for that one project.
-
-A future tmux integration (where hotcut spawns each source inside a pane it owns, so you can still `tmux attach` to inspect or interact) is on the roadmap.
 
 ## Command reference
 
