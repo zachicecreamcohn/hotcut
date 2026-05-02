@@ -89,8 +89,10 @@ function sleep(ms: number): Promise<void> {
 }
 
 async function forkDaemon(paths: StatePaths, opts: EnsureDaemonOpts): Promise<void> {
-  const here = dirname(fileURLToPath(import.meta.url));
-  const defaultEntry = resolve(here, "entry.ts");
+  const thisFile = fileURLToPath(import.meta.url);
+  const here = dirname(thisFile);
+  const isCompiled = thisFile.endsWith(".js");
+  const defaultEntry = resolve(here, isCompiled ? "entry.js" : "entry.ts");
   const target = opts.forkTarget ?? defaultEntry;
   const useTsx = target.endsWith(".ts");
 
