@@ -25,6 +25,12 @@ export const ProjectConfig = z.object({
     }),
   }),
   env: z.record(z.string(), z.string()).default({}),
+  discovery: z
+    .object({
+      include: z.array(z.string()).default(["*"]),
+      exclude: z.array(z.string()).default([]),
+    })
+    .default({ include: ["*"], exclude: [] }),
 });
 
 export type ProjectConfig = z.infer<typeof ProjectConfig>;

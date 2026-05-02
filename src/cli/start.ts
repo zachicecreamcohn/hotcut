@@ -1,13 +1,14 @@
-import { stat } from "node:fs/promises";
-import { basename, isAbsolute, relative, resolve, sep } from "node:path";
 import { Command } from "commander";
 import { Bus } from "../bus/bus.js";
 import { findProjectRoot } from "../config/discover.js";
 import { loadConfig } from "../config/load.js";
+import { discoverSources } from "../discovery/discovery.js";
 import { startProxy } from "../proxy/server.js";
-import { findFreePort } from "../supervisor/port.js";
 import { Source } from "../supervisor/source.js";
+import { Supervisor } from "../supervisor/supervisor.js";
 import { log, logError } from "../util/log.js";
+import { startKeypress } from "./keys.js";
+import { TallyRenderer } from "./tally.js";
 
 interface StartOptions {
   projectRoot?: string;
@@ -15,119 +16,86 @@ interface StartOptions {
 
 export function startCommand(): Command {
   return new Command("start")
-    .description("Start a single source and put it on program (slice 1)")
-    .argument("[name]", "worktree name (e.g. PL-123) or path; defaults to $PWD")
+    .description("Spawn every worktree's dev server and proxy to one (slice 2)")
     .option(
       "--project-root <path>",
       "override project root (default: nearest ancestor containing hotcut.toml)",
     )
-    .action(async (name: string | undefined, opts: StartOptions) => {
-      await runStart(name, opts);
+    .action(async (opts: StartOptions) => {
+      await runStart(opts);
     });
 }
 
-async function runStart(input: string | undefined, opts: StartOptions): Promise<void> {
+async function runStart(opts: StartOptions): Promise<void> {
   const projectRoot = opts.projectRoot
-    ? resolve(opts.projectRoot)
+    ? opts.projectRoot
     : await findProjectRoot(process.cwd());
   const config = await loadConfig(projectRoot);
 
-  const worktreePath = input
-    ? resolveWorktreePath(input, projectRoot, config.project.worktree_root)
-    : worktreeFromCwd(process.cwd(), projectRoot, config.project.worktree_root);
-  await assertDirectory(worktreePath, "worktree");
-  const port = await findFreePort();
-  const name = basename(worktreePath);
+  const discovered = await discoverSources(projectRoot, config);
+  if (discovered.length === 0) {
+    throw new Error(
+      `no worktrees found under ${projectRoot}/${config.project.worktree_root}`,
+    );
+  }
 
-  const source = new Source({ name, worktreePath, port, config });
+  const supervisor = new Supervisor(config, {
+    reservedPorts: new Set([config.project.proxy_port]),
+  });
   const bus = new Bus();
-  bus.setProgram(source);
+  const tally = new TallyRenderer({ projectName: config.project.name });
 
-  const proxy = startProxy(config.project.proxy_port, bus);
+  for (const d of discovered) await supervisor.register(d);
 
-  installShutdown(async () => {
-    log("shutting down...");
-    await proxy.close();
-    await source.down();
+  // Pick first source as initial program (will start serving once it warms).
+  const first = supervisor.list()[0]!;
+  bus.cut(first);
+
+  const proxy = await startProxy(config.project.proxy_port, bus);
+  log(`proxy on http://localhost:${config.project.proxy_port}`);
+
+  const redraw = () => tally.render(supervisor.list(), bus);
+  const offSupervisor = supervisor.onChange(redraw);
+  const offBus = bus.onCut(redraw);
+  redraw();
+
+  const keys = startKeypress(async (key) => {
+    if (key === "quit" || key === "q") {
+      await shutdown();
+      return;
+    }
+    const idx = parseInt(key, 10);
+    if (Number.isInteger(idx) && idx >= 1 && idx <= supervisor.list().length) {
+      const target = supervisor.list()[idx - 1]!;
+      cutTo(target);
+    }
   });
 
-  log(`spawning ${name} in ${worktreePath} on port ${port}`);
-  try {
-    await source.up();
-    log(
-      `${name} is warm; on program at http://localhost:${config.project.proxy_port}`,
-    );
-  } catch (err) {
-    logError(`failed to start ${name}`, err);
-    await proxy.close();
-    await source.down();
-    process.exit(1);
-  }
-}
-
-function worktreeFromCwd(
-  cwd: string,
-  projectRoot: string,
-  worktreeRoot: string,
-): string {
-  const root = resolve(projectRoot, worktreeRoot);
-  const rel = relative(root, cwd);
-  if (rel.startsWith("..") || isAbsolute(rel)) {
-    throw new Error(
-      `cannot infer worktree from ${cwd}: not inside ${root}.\n` +
-        `Pass a name explicitly, e.g. \`hotcut start PL-123\`.`,
-    );
-  }
-  const [first] = rel.split(sep);
-  if (!first) {
-    throw new Error(
-      `cannot infer worktree from ${cwd}: ${root} itself is not a worktree.\n` +
-        `cd into a worktree directory or pass a name.`,
-    );
-  }
-  return resolve(root, first);
-}
-
-function resolveWorktreePath(
-  input: string,
-  projectRoot: string,
-  worktreeRoot: string,
-): string {
-  if (isAbsolute(input)) return input;
-  // Bare name like "PL-123" → projectRoot/<worktree_root>/PL-123
-  if (!input.includes("/")) {
-    return resolve(projectRoot, worktreeRoot, input);
-  }
-  return resolve(projectRoot, input);
-}
-
-async function assertDirectory(path: string, label: string): Promise<void> {
-  try {
-    const s = await stat(path);
-    if (!s.isDirectory()) {
-      throw new Error(`${label} ${path} is not a directory`);
+  const cutTo = (target: Source): void => {
+    if (target.state === "cold" || target.state === "failed") {
+      void target.up().catch((err) => logError(`up ${target.name} failed`, err));
     }
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
-      throw new Error(`${label} not found: ${path}`);
-    }
-    throw err;
-  }
-}
-
-function installShutdown(handler: () => Promise<void>): void {
-  let running = false;
-  const onSignal = (signal: string) => {
-    if (running) return;
-    running = true;
-    log(`received ${signal}`);
-    handler()
-      .then(() => process.exit(0))
-      .catch((err) => {
-        logError("shutdown failed", err);
-        process.exit(1);
-      });
+    bus.cut(target);
   };
-  process.on("SIGINT", () => onSignal("SIGINT"));
-  process.on("SIGTERM", () => onSignal("SIGTERM"));
+
+  let shuttingDown = false;
+  const shutdown = async (): Promise<void> => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    keys.stop();
+    offSupervisor();
+    offBus();
+    tally.clear();
+    log("shutting down...");
+    await proxy.close();
+    await supervisor.downAll();
+    process.exit(0);
+  };
+  process.on("SIGINT", () => void shutdown());
+  process.on("SIGTERM", () => void shutdown());
+
+  keys.start();
+
+  // Warm everything in parallel; failures are tracked in tally.
+  void supervisor.upAll();
 }

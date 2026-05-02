@@ -11,10 +11,14 @@ import { log, logError } from "../util/log.js";
 
 export interface ProxyServer {
   server: Server;
+  port: number;
   close: () => Promise<void>;
 }
 
-export function startProxy(proxyPort: number, bus: Bus): ProxyServer {
+export async function startProxy(
+  proxyPort: number,
+  bus: Bus,
+): Promise<ProxyServer> {
   const proxy = httpProxy.createProxyServer({ ws: true, xfwd: true });
 
   proxy.on(
@@ -49,12 +53,21 @@ export function startProxy(proxyPort: number, bus: Bus): ProxyServer {
     proxy.ws(req, socket, head, { target: `http://127.0.0.1:${target.port}` });
   });
 
-  server.listen(proxyPort, () => {
-    log(`proxy listening on http://localhost:${proxyPort}`);
+  await new Promise<void>((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(proxyPort, () => {
+      server.off("error", reject);
+      resolve();
+    });
   });
+
+  const addr = server.address();
+  const boundPort = addr && typeof addr !== "string" ? addr.port : proxyPort;
+  log(`proxy listening on http://localhost:${boundPort}`);
 
   return {
     server,
+    port: boundPort,
     close: () =>
       new Promise<void>((resolve) => {
         proxy.close();

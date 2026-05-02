@@ -1,3 +1,5 @@
+import { EventEmitter } from "node:events";
+
 export type SourceState = "cold" | "starting" | "warm" | "failed";
 
 const LEGAL: Record<SourceState, ReadonlySet<SourceState>> = {
@@ -14,7 +16,16 @@ export class IllegalTransitionError extends Error {
   }
 }
 
-export class StateMachine {
+export interface StateChangeEvent {
+  from: SourceState;
+  to: SourceState;
+}
+
+export interface StateMachineEvents {
+  change: (e: StateChangeEvent) => void;
+}
+
+export class StateMachine extends EventEmitter {
   private current: SourceState = "cold";
 
   get state(): SourceState {
@@ -30,6 +41,8 @@ export class StateMachine {
     if (!LEGAL[this.current].has(to)) {
       throw new IllegalTransitionError(this.current, to);
     }
+    const from = this.current;
     this.current = to;
+    this.emit("change", { from, to } satisfies StateChangeEvent);
   }
 }

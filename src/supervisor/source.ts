@@ -38,6 +38,11 @@ export class Source {
     return this.machine.state;
   }
 
+  onStateChange(listener: (e: { from: SourceState; to: SourceState }) => void): () => void {
+    this.machine.on("change", listener);
+    return () => this.machine.off("change", listener);
+  }
+
   async up(): Promise<void> {
     if (!this.machine.is("cold", "failed")) return;
     this.machine.transition("starting");

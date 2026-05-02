@@ -39,10 +39,9 @@ afterEach(async () => {
 
 describe("end-to-end", () => {
   it("spawns a source, proxies to it, tears it down", async () => {
-    const proxyPort = await findFreePort();
-    const upstreamPort = await findFreePort({ exclude: new Set([proxyPort]) });
+    const upstreamPort = await findFreePort();
     const config = ProjectConfig.parse({
-      project: { name: "test", proxy_port: proxyPort },
+      project: { name: "test", proxy_port: 1 },
       run: {
         cmd: "node server.js",
         ready: { http: "/", timeout: "5s", poll_interval: "100ms" },
@@ -56,13 +55,13 @@ describe("end-to-end", () => {
       config,
     });
     const bus = new Bus();
-    bus.setProgram(source);
-    proxy = startProxy(config.project.proxy_port, bus);
+    bus.cut(source);
+    proxy = await startProxy(0, bus);
 
     await source.up();
     assert.equal(source.state, "warm");
 
-    const res = await fetch(`http://127.0.0.1:${config.project.proxy_port}/`);
+    const res = await fetch(`http://127.0.0.1:${proxy.port}/`);
     assert.equal(res.status, 200);
     const body = await res.text();
     assert.match(body, /hello from wt on \d+/);
@@ -72,10 +71,9 @@ describe("end-to-end", () => {
   });
 
   it("503s when nothing on program", async () => {
-    const proxyPort = await findFreePort();
     const bus = new Bus();
-    proxy = startProxy(proxyPort, bus);
-    const res = await fetch(`http://127.0.0.1:${proxyPort}/`);
+    proxy = await startProxy(0, bus);
+    const res = await fetch(`http://127.0.0.1:${proxy.port}/`);
     assert.equal(res.status, 503);
   });
 });

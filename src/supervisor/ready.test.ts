@@ -16,23 +16,34 @@ afterEach(async () => {
   }
 });
 
-async function listen(port: number, status: number): Promise<void> {
+async function listen(status: number): Promise<number> {
   server = createServer((_req, res) => {
     res.writeHead(status);
     res.end();
   });
-  await new Promise<void>((r) => server!.listen(port, "127.0.0.1", r));
+  await new Promise<void>((r) => server!.listen(0, "127.0.0.1", r));
+  const addr = server!.address();
+  if (!addr || typeof addr === "string") throw new Error("no address");
+  return addr.port;
 }
 
-function freePort(): number {
-  // Random ephemeral port for tests.
-  return 50000 + Math.floor(Math.random() * 10000);
+/**
+ * Bind, capture the port, immediately release. Gives us a port that was
+ * just confirmed unused. Still TOCTOU but good enough for this test.
+ */
+async function unboundPort(): Promise<number> {
+  const s = createServer();
+  await new Promise<void>((r) => s.listen(0, "127.0.0.1", r));
+  const addr = s.address();
+  if (!addr || typeof addr === "string") throw new Error("no address");
+  const port = addr.port;
+  await new Promise<void>((r) => s.close(() => r()));
+  return port;
 }
 
 describe("waitForHttpReady", () => {
   it("returns when server responds 2xx", async () => {
-    const port = freePort();
-    await listen(port, 200);
+    const port = await listen(200);
     await waitForHttpReady({
       port,
       path: "/",
@@ -42,8 +53,7 @@ describe("waitForHttpReady", () => {
   });
 
   it("treats 4xx as ready", async () => {
-    const port = freePort();
-    await listen(port, 404);
+    const port = await listen(404);
     await waitForHttpReady({
       port,
       path: "/",
@@ -53,9 +63,10 @@ describe("waitForHttpReady", () => {
   });
 
   it("times out when nothing is listening", async () => {
+    const port = await unboundPort();
     await assert.rejects(
       waitForHttpReady({
-        port: freePort(),
+        port,
         path: "/",
         timeout: "200ms",
         pollInterval: "50ms",
@@ -65,11 +76,12 @@ describe("waitForHttpReady", () => {
   });
 
   it("aborts immediately when signal fires", async () => {
+    const port = await unboundPort();
     const ac = new AbortController();
     setTimeout(() => ac.abort("test"), 50);
     await assert.rejects(
       waitForHttpReady({
-        port: freePort(),
+        port,
         path: "/",
         timeout: "10s",
         pollInterval: "50ms",

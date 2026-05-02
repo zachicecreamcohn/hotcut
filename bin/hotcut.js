@@ -12,6 +12,14 @@ const tsx = resolve(here, "..", "node_modules", ".bin", "tsx");
 const child = spawn(tsx, [entry, ...process.argv.slice(2)], {
   stdio: "inherit",
 });
+
+const forward = (signal) => {
+  if (!child.killed) child.kill(signal);
+};
+process.on("SIGINT", () => forward("SIGINT"));
+process.on("SIGTERM", () => forward("SIGTERM"));
+process.on("SIGHUP", () => forward("SIGHUP"));
+
 child.on("exit", (code, signal) => {
   if (signal) process.kill(process.pid, signal);
   else process.exit(code ?? 0);
