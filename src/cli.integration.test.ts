@@ -44,6 +44,11 @@ beforeEach(async () => {
   for (const name of ["A", "B"]) {
     await mkdir(join(project, ".worktree", name));
     await writeFile(join(project, ".worktree", name, "server.js"), FIXTURE);
+    // Fake a git worktree pointer so discovery's requireGit check passes.
+    await writeFile(
+      join(project, ".worktree", name, ".git"),
+      "gitdir: /nonexistent/.git/worktrees/" + name + "\n",
+    );
   }
   const toml = [
     "[project]",
@@ -107,4 +112,40 @@ describe("cli integration", () => {
     assert.ok(sockGone, "sock should be removed");
     assert.ok(pidGone, "pid file should be removed");
   });
+
+  it("auto-discovers new worktrees and removes deleted ones", async () => {
+    await runCli(["tally"]);
+
+    // Add a third worktree on the fly.
+    const newWt = join(project, ".worktree", "C");
+    await mkdir(newWt);
+    await writeFile(join(newWt, ".git"), "gitdir: /x/.git/worktrees/C\n");
+
+    await waitFor(async () => {
+      const r = await runCli(["tally", "--json"]);
+      const t = JSON.parse(r.stdout);
+      return t.projects[0].sources.find((s: { name: string }) => s.name === "C");
+    });
+
+    // Remove an existing one and verify it disappears.
+    await rm(join(project, ".worktree", "A"), { recursive: true, force: true });
+    await waitFor(async () => {
+      const r = await runCli(["tally", "--json"]);
+      const t = JSON.parse(r.stdout);
+      const found = t.projects[0].sources.find(
+        (s: { name: string }) => s.name === "A",
+      );
+      return found ? undefined : true;
+    });
+  });
 });
+
+async function waitFor<T>(check: () => Promise<T | undefined>, timeoutMs = 5000): Promise<T> {
+  const start = Date.now();
+  while (true) {
+    const r = await check();
+    if (r !== undefined) return r as T;
+    if (Date.now() - start > timeoutMs) throw new Error("waitFor timed out");
+    await new Promise((res) => setTimeout(res, 100));
+  }
+}

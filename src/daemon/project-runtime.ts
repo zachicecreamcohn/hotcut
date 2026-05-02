@@ -1,5 +1,6 @@
 import type { ProjectConfig } from "../config/schema.js";
 import type { DiscoveredSource } from "../discovery/discovery.js";
+import { DiscoveryWatcher } from "../discovery/watcher.js";
 import { Bus } from "../bus/bus.js";
 import { startProxy, type ProxyServer } from "../proxy/server.js";
 import { Supervisor } from "../supervisor/supervisor.js";
@@ -8,6 +9,7 @@ import {
   ERROR_CODES,
   ProtocolError,
 } from "../proto/errors.js";
+import { log, logError } from "../util/log.js";
 import type {
   CutResult,
   DownResult,
@@ -21,6 +23,7 @@ export interface ProjectRuntimeOpts {
   config: ProjectConfig;
   onChange?: () => void;
   portRangeStart?: number;
+  enableWatcher?: boolean;
 }
 
 export class ProjectRuntime {
@@ -31,11 +34,14 @@ export class ProjectRuntime {
   private proxy: ProxyServer | null = null;
   private readonly onChange?: () => void;
   private shutdownInProgress = false;
+  private watcher: DiscoveryWatcher | null = null;
+  private readonly enableWatcher: boolean;
 
   constructor(opts: ProjectRuntimeOpts) {
     this.root = opts.root;
     this.config = opts.config;
     this.onChange = opts.onChange;
+    this.enableWatcher = opts.enableWatcher ?? true;
     this.supervisor = new Supervisor(opts.config, {
       reservedPorts: new Set([opts.config.project.proxy_port]),
       portRangeStart: opts.portRangeStart,
@@ -63,6 +69,18 @@ export class ProjectRuntime {
   async start(): Promise<void> {
     if (this.proxy) return;
     this.proxy = await startProxy(this.config.project.proxy_port, this.bus);
+    if (this.enableWatcher) {
+      this.watcher = new DiscoveryWatcher(this.root, this.config, {
+        add: (src) => void this.onWatcherAdd(src),
+        remove: (name) => void this.onWatcherRemove(name),
+      });
+      try {
+        await this.watcher.start();
+      } catch (err) {
+        logError("watcher failed to start; auto-discovery disabled", err);
+        this.watcher = null;
+      }
+    }
   }
 
   async register(discovered: DiscoveredSource): Promise<Source> {
@@ -164,11 +182,36 @@ export class ProjectRuntime {
 
   async shutdown(): Promise<void> {
     this.shutdownInProgress = true;
+    if (this.watcher) {
+      await this.watcher.stop().catch(() => {});
+      this.watcher = null;
+    }
     if (this.proxy) {
       await this.proxy.close();
       this.proxy = null;
     }
     await this.supervisor.downAll();
+  }
+
+  private async onWatcherAdd(src: DiscoveredSource): Promise<void> {
+    if (this.shutdownInProgress) return;
+    if (this.supervisor.get(src.name)) return;
+    try {
+      await this.supervisor.register(src);
+      log("discovered new worktree: " + src.name);
+    } catch (err) {
+      logError("failed to register " + src.name, err);
+    }
+  }
+
+  private async onWatcherRemove(name: string): Promise<void> {
+    if (this.shutdownInProgress) return;
+    if (!this.supervisor.get(name)) return;
+    if (this.bus.programName() === name) this.bus.clear();
+    await this.supervisor.unregister(name).catch((err) => {
+      logError("failed to unregister " + name, err);
+    });
+    log("worktree removed: " + name);
   }
 
   listSourceNames(): string[] {

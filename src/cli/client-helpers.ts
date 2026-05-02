@@ -48,7 +48,9 @@ export async function registerProject(
   client: DaemonClient,
   project: ResolvedProject,
 ): Promise<RegisterResult> {
-  const sources = await discoverSources(project.root, project.config);
+  const sources = await discoverSources(project.root, project.config, {
+    requireGit: true,
+  });
   return client.request<RegisterResult>("register", {
     root: project.root,
     name: project.config.project.name,

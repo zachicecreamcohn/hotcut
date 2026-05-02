@@ -66,6 +66,14 @@ export class Supervisor {
     return source;
   }
 
+  async unregister(name: string): Promise<void> {
+    const source = this.sources.get(name);
+    if (!source) return;
+    await source.down().catch(() => {});
+    this.sources.delete(name);
+    this.notify(source);
+  }
+
   /** Warm every cold source in parallel. Resolves once each has settled (warm or failed). */
   async upAll(): Promise<void> {
     await Promise.allSettled(
