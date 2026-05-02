@@ -14,4 +14,9 @@ export const DEFAULTS = {
     rangeStart: 41000,
     rangeEnd: 65000,
   },
+  log: {
+    bufferLines: 1000,
+    rotateBytes: 10 * 1024 * 1024,
+    rotateKeep: 3,
+  },
 } as const;

@@ -58,7 +58,13 @@ export async function runDaemon(opts: RunDaemonOpts = {}): Promise<void> {
     void shutdown();
   };
 
-  const handlers = buildHandlers({ state, persist, requestShutdown, version: VERSION });
+  const handlers = buildHandlers({
+    state,
+    persist,
+    requestShutdown,
+    version: VERSION,
+    logsDir: paths.logsDir,
+  });
   socket = await startSocketServer(paths.sockPath, handlers);
   log("daemon listening on " + paths.sockPath + " (pid " + process.pid + ")");
 

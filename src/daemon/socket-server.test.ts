@@ -27,7 +27,8 @@ describe("socket server", () => {
   it("roundtrips a request and response", async () => {
     const sockPath = join(dir, "sock");
     server = await startSocketServer(sockPath, {
-      ping: async (params) => ({ pong: params }),
+      unary: { ping: async (params: unknown) => ({ pong: params }) },
+      stream: {},
     });
     client = new DaemonClient(sockPath);
     await client.connect();
@@ -37,7 +38,7 @@ describe("socket server", () => {
 
   it("returns an error envelope for unknown methods", async () => {
     const sockPath = join(dir, "sock");
-    server = await startSocketServer(sockPath, {});
+    server = await startSocketServer(sockPath, { unary: {}, stream: {} });
     client = new DaemonClient(sockPath);
     await client.connect();
     await assert.rejects(
@@ -47,12 +48,66 @@ describe("socket server", () => {
     );
   });
 
+  it("streams chunks then ends with done", async () => {
+    const sockPath = join(dir, "sock");
+    server = await startSocketServer(sockPath, {
+      unary: {},
+      stream: {
+        count: async (params: unknown, ctl) => {
+          const n = (params as { n: number }).n;
+          for (let i = 0; i < n; i++) {
+            if (ctl.isCancelled()) return;
+            ctl.push({ i });
+          }
+        },
+      },
+    });
+    client = new DaemonClient(sockPath);
+    await client.connect();
+    const s = client.requestStream<{ i: number }>("count", { n: 3 });
+    const out: number[] = [];
+    for await (const chunk of s.iterator) out.push(chunk.i);
+    assert.deepEqual(out, [0, 1, 2]);
+  });
+
+  it("supports stream cancellation", async () => {
+    const sockPath = join(dir, "sock");
+    server = await startSocketServer(sockPath, {
+      unary: {},
+      stream: {
+        forever: async (_params: unknown, ctl) => {
+          let cancelled = false;
+          ctl.onCancel(() => {
+            cancelled = true;
+          });
+          while (!cancelled) {
+            ctl.push({ tick: Date.now() });
+            await new Promise((r) => setTimeout(r, 10));
+          }
+        },
+      },
+    });
+    client = new DaemonClient(sockPath);
+    await client.connect();
+    const s = client.requestStream<{ tick: number }>("forever");
+    let received = 0;
+    setTimeout(() => s.cancel(), 30);
+    for await (const _ of s.iterator) {
+      received += 1;
+      if (received > 200) break;
+    }
+    assert.ok(received > 0);
+  });
+
   it("propagates ProtocolError code from handler", async () => {
     const sockPath = join(dir, "sock");
     server = await startSocketServer(sockPath, {
-      boom: async () => {
-        throw new ProtocolError(ERROR_CODES.SOURCE_NOT_FOUND, "missing");
+      unary: {
+        boom: async () => {
+          throw new ProtocolError(ERROR_CODES.SOURCE_NOT_FOUND, "missing");
+        },
       },
+      stream: {},
     });
     client = new DaemonClient(sockPath);
     await client.connect();

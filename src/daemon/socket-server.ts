@@ -4,22 +4,29 @@ import { ERROR_CODES, ProtocolError } from "../proto/errors.js";
 import { encodeMessage, MessageDecoder } from "../proto/framing.js";
 import { RequestEnvelope, ResponseEnvelope } from "../proto/schema.js";
 import { logError } from "../util/log.js";
-import type { MethodHandler } from "./handlers.js";
+import type { MethodHandler, StreamMethodHandler } from "./handlers.js";
 
 export interface SocketServer {
   server: Server;
   close: () => Promise<void>;
 }
 
+export interface SocketHandlers {
+  unary: Record<string, MethodHandler>;
+  stream: Record<string, StreamMethodHandler>;
+}
+
 export async function startSocketServer(
   sockPath: string,
-  handlers: Record<string, MethodHandler>,
+  handlers: SocketHandlers,
 ): Promise<SocketServer> {
   await unlink(sockPath).catch((err) => {
     if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
   });
 
   const server = createServer((socket) => handleConnection(socket, handlers));
+
+  server.on("error", (err) => logError("socket server error", err));
 
   await new Promise<void>((resolve, reject) => {
     server.once("error", reject);
@@ -42,8 +49,21 @@ export async function startSocketServer(
 
 function handleConnection(
   socket: Socket,
-  handlers: Record<string, MethodHandler>,
+  handlers: SocketHandlers,
 ): void {
+  const cancellers = new Map<string, () => void>();
+
+  socket.on("close", () => {
+    for (const c of cancellers.values()) {
+      try {
+        c();
+      } catch {
+        // ignore
+      }
+    }
+    cancellers.clear();
+  });
+
   const decoder = new MessageDecoder();
 
   socket.on("data", (chunk: Buffer) => {
@@ -56,7 +76,7 @@ function handleConnection(
       return;
     }
     for (const m of messages) {
-      void dispatch(socket, handlers, m);
+      void dispatch(socket, handlers, cancellers, m);
     }
   });
 
@@ -65,7 +85,8 @@ function handleConnection(
 
 async function dispatch(
   socket: Socket,
-  handlers: Record<string, MethodHandler>,
+  handlers: SocketHandlers,
+  cancellers: Map<string, () => void>,
   raw: unknown,
 ): Promise<void> {
   const parsed = RequestEnvelope.safeParse(raw);
@@ -77,7 +98,53 @@ async function dispatch(
     return;
   }
   const req = parsed.data;
-  const handler = handlers[req.method];
+
+  // Special: client cancels a streaming request by sending the same id with method "_cancel".
+  if (req.method === "_cancel") {
+    const cancel = cancellers.get(req.id);
+    if (cancel) {
+      cancellers.delete(req.id);
+      cancel();
+    }
+    return;
+  }
+
+  const stream = handlers.stream[req.method];
+  if (stream) {
+    let cancelled = false;
+    const cancel = (): void => {
+      cancelled = true;
+    };
+    cancellers.set(req.id, cancel);
+    try {
+      await stream(req.params, {
+        push: (chunk) => {
+          if (cancelled) return;
+          writeResponse(socket, { id: req.id, result: chunk });
+        },
+        isCancelled: () => cancelled,
+        onCancel: (fn) => {
+          const wrapped = (): void => {
+            cancelled = true;
+            try {
+              fn();
+            } catch {
+              // ignore
+            }
+          };
+          cancellers.set(req.id, wrapped);
+        },
+      });
+      writeResponse(socket, { id: req.id, done: true });
+    } catch (err) {
+      writeStreamError(socket, req.id, err);
+    } finally {
+      cancellers.delete(req.id);
+    }
+    return;
+  }
+
+  const handler = handlers.unary[req.method];
   if (!handler) {
     writeResponse(socket, {
       id: req.id,
@@ -89,20 +156,24 @@ async function dispatch(
     const result = await handler(req.params);
     writeResponse(socket, { id: req.id, result });
   } catch (err) {
-    if (err instanceof ProtocolError) {
-      writeResponse(socket, {
-        id: req.id,
-        error: { code: err.code, message: err.message },
-      });
-    } else {
-      writeResponse(socket, {
-        id: req.id,
-        error: {
-          code: ERROR_CODES.GENERIC,
-          message: err instanceof Error ? err.message : String(err),
-        },
-      });
-    }
+    writeStreamError(socket, req.id, err);
+  }
+}
+
+function writeStreamError(socket: Socket, id: string, err: unknown): void {
+  if (err instanceof ProtocolError) {
+    writeResponse(socket, {
+      id,
+      error: { code: err.code, message: err.message },
+    });
+  } else {
+    writeResponse(socket, {
+      id,
+      error: {
+        code: ERROR_CODES.GENERIC,
+        message: err instanceof Error ? err.message : String(err),
+      },
+    });
   }
 }
 

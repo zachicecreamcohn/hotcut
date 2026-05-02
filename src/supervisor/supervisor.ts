@@ -1,5 +1,6 @@
 import type { ProjectConfig } from "../config/schema.js";
 import type { DiscoveredSource } from "../discovery/discovery.js";
+import type { LogBuffer } from "./log-buffer.js";
 import { findFreePort } from "./port.js";
 import { Source } from "./source.js";
 import type { SourceState } from "./state.js";
@@ -8,6 +9,7 @@ export interface SupervisorOpts {
   reservedPorts?: ReadonlySet<number>;
   portRangeStart?: number;
   portRangeEnd?: number;
+  logBufferFor?: (sourceName: string) => LogBuffer;
 }
 
 export interface SupervisorEntry {
@@ -59,6 +61,7 @@ export class Supervisor {
       worktreePath: discovered.worktreePath,
       port,
       config: this.config,
+      logBuffer: this.opts.logBufferFor?.(discovered.name),
     });
     source.onStateChange(() => this.notify(source));
     this.sources.set(source.name, source);
@@ -70,6 +73,7 @@ export class Supervisor {
     const source = this.sources.get(name);
     if (!source) return;
     await source.down().catch(() => {});
+    await source.closeLogBuffer().catch(() => {});
     this.sources.delete(name);
     this.notify(source);
   }
@@ -83,6 +87,7 @@ export class Supervisor {
 
   async downAll(): Promise<void> {
     await Promise.allSettled(this.list().map((s) => s.down()));
+    await Promise.allSettled(this.list().map((s) => s.closeLogBuffer()));
   }
 
   onChange(listener: SupervisorListener): () => void {

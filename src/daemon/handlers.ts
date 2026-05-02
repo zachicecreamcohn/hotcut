@@ -7,6 +7,8 @@ import {
   DownResult,
   DaemonShutdownResult,
   DaemonStatusResult,
+  LogEntryDto,
+  LogsParams,
   RegisterParams,
   RegisterResult,
   TallyParams,
@@ -23,12 +25,29 @@ export interface HandlerCtx {
   persist: () => Promise<void>;
   requestShutdown: () => void;
   version: string;
+  logsDir: string;
 }
 
 export type MethodHandler = (params: unknown) => Promise<unknown>;
 
-export function buildHandlers(ctx: HandlerCtx): Record<string, MethodHandler> {
-  return {
+export interface StreamControl {
+  push: (chunk: unknown) => void;
+  isCancelled: () => boolean;
+  onCancel: (fn: () => void) => void;
+}
+
+export type StreamMethodHandler = (
+  params: unknown,
+  ctl: StreamControl,
+) => Promise<void>;
+
+export interface BuiltHandlers {
+  unary: Record<string, MethodHandler>;
+  stream: Record<string, StreamMethodHandler>;
+}
+
+export function buildHandlers(ctx: HandlerCtx): BuiltHandlers {
+  const unary: Record<string, MethodHandler> = {
     [METHODS.tally]: async (params): Promise<TallyResult> => {
       const p = TallyParams.parse(params ?? {});
       let runtimes: ProjectRuntime[];
@@ -96,6 +115,7 @@ export function buildHandlers(ctx: HandlerCtx): Record<string, MethodHandler> {
       const runtime = new ProjectRuntime({
         root: p.root,
         config: parsed.data,
+        logsDir: ctx.logsDir,
       });
       try {
         await runtime.start();
@@ -126,6 +146,43 @@ export function buildHandlers(ctx: HandlerCtx): Record<string, MethodHandler> {
       };
     },
   };
+
+  const stream: Record<string, StreamMethodHandler> = {
+    [METHODS.logs]: async (params, ctl) => {
+      const p = LogsParams.parse(params);
+      const r = requireProject(ctx, p.projectRoot);
+      const source = r.getSource(p.name);
+      if (!source) {
+        throw new ProtocolError(
+          ERROR_CODES.SOURCE_NOT_FOUND,
+          "source not found: " + p.name,
+        );
+      }
+      const buffer = source.logBuffer;
+      const recent = buffer.recent(p.lastN);
+      for (const e of recent) {
+        if (ctl.isCancelled()) return;
+        ctl.push(e satisfies LogEntryDto);
+      }
+      if (!p.follow) return;
+
+      let resolveDone: () => void = () => {};
+      const done = new Promise<void>((resolve) => {
+        resolveDone = resolve;
+      });
+      const unsub = buffer.subscribe((entry) => {
+        if (ctl.isCancelled()) return;
+        ctl.push(entry satisfies LogEntryDto);
+      });
+      ctl.onCancel(() => {
+        unsub();
+        resolveDone();
+      });
+      await done;
+    },
+  };
+
+  return { unary, stream };
 }
 
 function requireProject(ctx: HandlerCtx, root: string): ProjectRuntime {

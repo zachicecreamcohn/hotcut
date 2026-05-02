@@ -24,6 +24,11 @@ export const ProjectConfig = z.object({
       poll_interval: DEFAULTS.ready.pollInterval,
     }),
   }),
+  log: z
+    .object({
+      buffer_lines: z.number().int().positive().default(DEFAULTS.log.bufferLines),
+    })
+    .default({ buffer_lines: DEFAULTS.log.bufferLines }),
   env: z.record(z.string(), z.string()).default({}),
   discovery: z
     .object({

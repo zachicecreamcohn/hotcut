@@ -28,7 +28,16 @@ describe("ensureDaemon", () => {
   it("connects to an already-running daemon", async () => {
     const paths = resolveStatePaths({ HOTCUT_STATE_DIR: dir });
     server = await startSocketServer(paths.sockPath, {
-      "daemon.status": async () => ({ pid: 1, uptime: 0, version: "x", projects: 0, sources: 0 }),
+      unary: {
+        "daemon.status": async () => ({
+          pid: 1,
+          uptime: 0,
+          version: "x",
+          projects: 0,
+          sources: 0,
+        }),
+      },
+      stream: {},
     });
     client = await ensureDaemon({ paths });
     const r = await client.request<{ version: string }>("daemon.status");

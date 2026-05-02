@@ -18,10 +18,11 @@ const FIXTURE = `
 const http = require("node:http");
 const port = Number(process.env.HOTCUT_PORT);
 const name = process.env.HOTCUT_NAME;
+console.log("starting " + name + " on " + port);
 http.createServer((_req, res) => {
   res.writeHead(200, { "content-type": "text/plain" });
   res.end("hello from " + name);
-}).listen(port);
+}).listen(port, () => console.log("listening " + name));
 `;
 
 let project: string;
@@ -111,6 +112,20 @@ describe("cli integration", () => {
     }
     assert.ok(sockGone, "sock should be removed");
     assert.ok(pidGone, "pid file should be removed");
+  });
+
+  it("hotcut logs returns recent stdout/stderr lines", async () => {
+    await runCli(["up", "--all"]);
+    // Give the fixture's startup chatter time to flush.
+    await new Promise((r) => setTimeout(r, 200));
+    const r = await runCli(["logs", "A", "--json"]);
+    const lines = r.stdout.trim().split("\n").filter(Boolean).map((l) => JSON.parse(l));
+    assert.ok(lines.length > 0, "expected at least one log line, got: " + r.stdout);
+    for (const l of lines) {
+      assert.ok(l.ts > 0);
+      assert.ok(l.stream === "stdout" || l.stream === "stderr");
+      assert.equal(typeof l.line, "string");
+    }
   });
 
   it("auto-discovers new worktrees and removes deleted ones", async () => {

@@ -1,8 +1,10 @@
+import { join } from "node:path";
 import type { ProjectConfig } from "../config/schema.js";
 import type { DiscoveredSource } from "../discovery/discovery.js";
 import { DiscoveryWatcher } from "../discovery/watcher.js";
 import { Bus } from "../bus/bus.js";
 import { startProxy, type ProxyServer } from "../proxy/server.js";
+import { LogBuffer } from "../supervisor/log-buffer.js";
 import { Supervisor } from "../supervisor/supervisor.js";
 import type { Source } from "../supervisor/source.js";
 import {
@@ -24,6 +26,8 @@ export interface ProjectRuntimeOpts {
   onChange?: () => void;
   portRangeStart?: number;
   enableWatcher?: boolean;
+  /** Directory where per-source log files are written (e.g. <stateDir>/logs). */
+  logsDir?: string;
 }
 
 export class ProjectRuntime {
@@ -42,9 +46,17 @@ export class ProjectRuntime {
     this.config = opts.config;
     this.onChange = opts.onChange;
     this.enableWatcher = opts.enableWatcher ?? true;
+    const logsDir = opts.logsDir;
     this.supervisor = new Supervisor(opts.config, {
       reservedPorts: new Set([opts.config.project.proxy_port]),
       portRangeStart: opts.portRangeStart,
+      logBufferFor: (sourceName) =>
+        new LogBuffer({
+          bufferLines: opts.config.log.buffer_lines,
+          filePath: logsDir
+            ? join(logsDir, opts.config.project.name, sourceName + ".log")
+            : undefined,
+        }),
     });
     this.bus = new Bus();
     this.supervisor.onChange((entry) => {
@@ -212,6 +224,10 @@ export class ProjectRuntime {
       logError("failed to unregister " + name, err);
     });
     log("worktree removed: " + name);
+  }
+
+  getSource(name: string): Source | undefined {
+    return this.supervisor.get(name);
   }
 
   listSourceNames(): string[] {

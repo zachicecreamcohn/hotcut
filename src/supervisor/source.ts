@@ -1,7 +1,8 @@
 import { execa, type ResultPromise } from "execa";
 import { toMs } from "../config/duration.js";
 import type { ProjectConfig } from "../config/schema.js";
-import { logError, prefixedLogger } from "../util/log.js";
+import { logError } from "../util/log.js";
+import { LogBuffer, type LogStream } from "./log-buffer.js";
 import { waitForHttpReady } from "./ready.js";
 import { StateMachine, type SourceState } from "./state.js";
 
@@ -10,6 +11,7 @@ export interface SourceOpts {
   worktreePath: string;
   port: number;
   config: ProjectConfig;
+  logBuffer?: LogBuffer;
 }
 
 const ENV_VAR_PATTERN = /\$([A-Z_][A-Z0-9_]*)/g;
@@ -22,7 +24,10 @@ export class Source {
   private readonly config: ProjectConfig;
   private readonly machine = new StateMachine();
   private downRequested = false;
-  private readonly logger;
+  readonly logBuffer: LogBuffer;
+  private readonly ownsLogBuffer: boolean;
+  private stdoutCarry = "";
+  private stderrCarry = "";
   private child: ResultPromise | null = null;
   private abort: AbortController | null = null;
 
@@ -31,7 +36,15 @@ export class Source {
     this.worktreePath = opts.worktreePath;
     this.port = opts.port;
     this.config = opts.config;
-    this.logger = prefixedLogger(`[${this.name}]`);
+    if (opts.logBuffer) {
+      this.logBuffer = opts.logBuffer;
+      this.ownsLogBuffer = false;
+    } else {
+      this.logBuffer = new LogBuffer({
+        bufferLines: this.config.log.buffer_lines,
+      });
+      this.ownsLogBuffer = true;
+    }
   }
 
   get state(): SourceState {
@@ -89,8 +102,8 @@ export class Source {
       reject: false,
     });
 
-    child.stdout?.on("data", (b: Buffer) => this.logger.write("stdout", b));
-    child.stderr?.on("data", (b: Buffer) => this.logger.write("stderr", b));
+    child.stdout?.on("data", (b: Buffer) => this.onChunk("stdout", b));
+    child.stderr?.on("data", (b: Buffer) => this.onChunk("stderr", b));
 
     return child;
   }
@@ -133,6 +146,24 @@ export class Source {
       clearTimeout(killer);
       this.child = null;
     }
+  }
+
+  private onChunk(stream: LogStream, chunk: Buffer): void {
+    const text = chunk.toString("utf8");
+    const carry = stream === "stdout" ? this.stdoutCarry : this.stderrCarry;
+    const combined = carry + text;
+    const parts = combined.split("\n");
+    const trailing = parts.pop() ?? "";
+    if (stream === "stdout") this.stdoutCarry = trailing;
+    else this.stderrCarry = trailing;
+    for (const line of parts) {
+      this.logBuffer.append(stream, line);
+    }
+  }
+
+  /** Release log file handles. Safe to call multiple times. */
+  async closeLogBuffer(): Promise<void> {
+    if (this.ownsLogBuffer) await this.logBuffer.close();
   }
 
   private buildEnv(): NodeJS.ProcessEnv {

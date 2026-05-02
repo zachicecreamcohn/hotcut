@@ -101,6 +101,24 @@ export const DaemonStatusResult = z.object({
 });
 export type DaemonStatusResult = z.infer<typeof DaemonStatusResult>;
 
+export const LogEntryDto = z.object({
+  ts: z.number(),
+  stream: z.enum(["stdout", "stderr"]),
+  line: z.string(),
+});
+export type LogEntryDto = z.infer<typeof LogEntryDto>;
+
+export const LogsParams = z.object({
+  projectRoot: z.string(),
+  name: z.string(),
+  follow: z.boolean().optional(),
+  lastN: z.number().int().nonnegative().optional(),
+});
+export type LogsParams = z.infer<typeof LogsParams>;
+
+export const LogsResult = LogEntryDto;
+export type LogsResult = z.infer<typeof LogsResult>;
+
 export const RequestEnvelope = z.object({
   id: z.string(),
   method: z.string(),
@@ -130,4 +148,5 @@ export const METHODS = {
   register: "register",
   daemonShutdown: "daemon.shutdown",
   daemonStatus: "daemon.status",
+  logs: "logs",
 } as const;
