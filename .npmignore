@@ -1,0 +1,8 @@
+plans/
+progress.md
+src/
+bin/
+node_modules/
+*.test.ts
+tsconfig.json
+.gitignore

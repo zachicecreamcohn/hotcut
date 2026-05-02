@@ -43,6 +43,10 @@ hotcut status
 #   ○ ticket-456    —       cold
 #   ○ ticket-789    —       cold
 
+# cut to (and warm) a given worktree
+hotcut ticket-123
+
+# or...
 # pre-warm everything (live status while it works)
 hotcut warm-all
 # my-app
@@ -50,7 +54,7 @@ hotcut warm-all
 #   ● ticket-456    :41002  ready
 #   ● ticket-789    :41003  ready
 
-# instant cuts between warm sources
+# then cut between already-warm worktrees
 hotcut ticket-456
 hotcut ticket-123
 ```
@@ -134,7 +138,8 @@ A single `hotcut.toml` in your project root:
 
 ```toml
 [project]
-name = "my-app"worktree_root = ".worktree"
+name = "my-app"
+worktree_root = ".worktree"
 proxy_port = 8080
 
 [run]

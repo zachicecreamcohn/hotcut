@@ -2,16 +2,22 @@
   "name": "hotcut",
   "version": "0.0.1",
   "description": "Cut to any worktree. Live.",
-  "main": "index.js",
+  "main": "dist/cli/index.js",
   "scripts": {
     "test": "node --import tsx --test 'src/**/*.test.ts'",
+    "prepublishOnly": "npm run build",
     "build": "tsc",
     "dev": "tsx src/cli/index.ts",
     "typecheck": "tsc --noEmit"
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "type": "module",
   "dependencies": {
     "@iarna/toml": "^2.2.5",
@@ -29,6 +35,6 @@
     "typescript": "^6.0.3"
   },
   "bin": {
-    "hotcut": "bin/hotcut.js"
+    "hotcut": "dist/cli/index.js"
   }
 }
