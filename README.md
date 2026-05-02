@@ -36,15 +36,23 @@ hotcut init
 # create worktrees as you normally do
 git worktree add .worktree/PL-123 -b zach/PL-123
 
-# hotcut auto-discovers it
+# hotcut auto-discovers them
 hotcut status
+# polypad
+#   ○ PL-123    —       cold
+#   ○ PL-456    —       cold
+#   ○ PL-789    —       cold
+
+# pre-warm everything (live status while it works)
+hotcut warm-all
 # polypad
 #   ● PL-123    :41001  ready    ← on program
 #   ● PL-456    :41002  ready
-#   ○ PL-789    —       cold
+#   ● PL-789    :41003  ready
 
-# cut between them
+# instant cuts between warm sources
 hotcut PL-456
+hotcut PL-123
 ```
 
 Open `http://localhost:8080` in your browser. It always points at whatever's on program. Switching worktrees on the CLI = browser refresh and you're on the new branch.
