@@ -7,8 +7,10 @@ import { upCommand } from "./cmd-up.js";
 import { downCommand } from "./cmd-down.js";
 import { daemonCommand } from "./cmd-daemon.js";
 import { logsCommand } from "./cmd-logs.js";
+import { initCommand } from "./cmd-init.js";
 
 const KNOWN_VERBS = new Set([
+  "init",
   "tally",
   "up",
   "down",
@@ -55,6 +57,7 @@ async function main(): Promise<void> {
   program.addCommand(downCommand());
   program.addCommand(daemonCommand());
   program.addCommand(logsCommand());
+  program.addCommand(initCommand());
 
   await program.parseAsync(process.argv);
 }
