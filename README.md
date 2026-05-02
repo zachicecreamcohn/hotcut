@@ -17,9 +17,9 @@ The idea behind hotcut is to run a dev server per worktree, all of them warm at 
 
 ```sh
 # the name after `hotcut` is the worktree's directory name,
-# i.e. `.worktree/PL-123` is the source `PL-123`.
-hotcut PL-123     # cut to .worktree/PL-123
-hotcut PL-456     # cut to .worktree/PL-456
+# i.e. `.worktree/ticket-123` is the source `ticket-123`.
+hotcut ticket-123     # cut to .worktree/ticket-123
+hotcut ticket-456     # cut to .worktree/ticket-456
 hotcut status     # see all live worktrees and their state
 ```
 
@@ -34,25 +34,25 @@ npm install -g hotcut
 hotcut init
 
 # create worktrees as you normally do
-git worktree add .worktree/PL-123 -b zach/PL-123
+git worktree add .worktree/ticket-123 -b zach/ticket-123
 
 # hotcut auto-discovers them
 hotcut status
-# polypad
-#   ○ PL-123    —       cold
-#   ○ PL-456    —       cold
-#   ○ PL-789    —       cold
+# my-app
+#   ○ ticket-123    —       cold
+#   ○ ticket-456    —       cold
+#   ○ ticket-789    —       cold
 
 # pre-warm everything (live status while it works)
 hotcut warm-all
-# polypad
-#   ● PL-123    :41001  ready    ← on program
-#   ● PL-456    :41002  ready
-#   ● PL-789    :41003  ready
+# my-app
+#   ● ticket-123    :41001  ready    ← on program
+#   ● ticket-456    :41002  ready
+#   ● ticket-789    :41003  ready
 
 # instant cuts between warm sources
-hotcut PL-456
-hotcut PL-123
+hotcut ticket-456
+hotcut ticket-123
 ```
 
 Open `http://localhost:8080` in your browser. It always points at whatever's on program. Switching worktrees on the CLI = browser refresh and you're on the new branch.
@@ -78,7 +78,7 @@ A cut waits for the new source to report ready before flipping. Cold sources sho
 
 ### Following hotcut to your active session
 
-By default, hotcut doesn't auto-switch — I run `hotcut <name>` when I want to cut. If I want switching tmux sessions to also cut program, this hook does it (assumes session names match worktree directory names, e.g. `tmux new -s PL-456` for `.worktree/PL-456`):
+By default, hotcut doesn't auto-switch — I run `hotcut <name>` when I want to cut. If I want switching tmux sessions to also cut program, this hook does it (assumes session names match worktree directory names, e.g. `tmux new -s ticket-456` for `.worktree/ticket-456`):
 
 ```tmux
 # in ~/.tmux.conf
@@ -86,8 +86,7 @@ set-hook -g client-session-changed 'run-shell "hotcut \"#{session_name}\" 2>/dev
 ```
 
 > [!IMPORTANT]
-> The hook passes `#{session_name}` straight to `hotcut`, so a session named `PL-456` cuts to `.worktree/PL-456`. If your sessions are named `polypad-PL-456` or `1-PL-456`, this is a no-op. Either name sessions after the worktree (`tmux new -s PL-456`), or wrap `#{session_name}` in a `run-shell` snippet that strips your prefix.
-
+> The hook passes `#{session_name}` straight to `hotcut`, so a session named `ticket-456` cuts to `.worktree/ticket-456`. If your sessions are named `myapp-ticket-456` or `1-ticket-456`, this is a no-op. Either name sessions after the worktree (`tmux new -s ticket-456`), or wrap `#{session_name}` in a `run-shell` snippet that strips your prefix.
 For non-tmux flows, a zsh `chpwd` hook does the same on `cd`. See [the shell integration plan](plans/07-shell-integration.md) for bash and fish equivalents.
 
 
@@ -100,9 +99,8 @@ The processes are detached children of the hotcut daemon. Their stdout and stder
 To see what a source is doing:
 
 ```sh
-hotcut logs PL-123        # last 1000 lines
-hotcut logs PL-123 -f     # follow live (like tail -f)
-```
+hotcut logs ticket-123        # last 1000 lines
+hotcut logs ticket-123 -f     # follow live (like tail -f)```
 
 The "warming up" holding page in the browser tells you the source is booting; a future version will surface log lines live in that page so you can watch compile output without leaving the browser.
 
@@ -141,8 +139,7 @@ A single `hotcut.toml` in your project root:
 
 ```toml
 [project]
-name = "polypad"
-worktree_root = ".worktree"
+name = "my-app"worktree_root = ".worktree"
 proxy_port = 8080
 
 [run]
