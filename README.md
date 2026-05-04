@@ -1,7 +1,5 @@
 # hotcut
 
-_Cut to any worktree. Live._
-
 **hotcut** keeps a dev server running for every git worktree at the same time and puts a single proxy in front of them. Switching branches becomes an instant cut, not a cold restart. `localhost:8080` always points at whichever worktree is "on program."
 
 ## Why
