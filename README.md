@@ -72,7 +72,7 @@ A zsh \`chpwd\` hook does the same on \`cd\`.
 
 `hotcut <name>` will warm a worktree on first cut if it isn't already running, then route to it instantly on subsequent cuts. If your build/start process is slow and you expect to switch around a lot, run `hotcut warm-all` up front so every worktree is ready before you start cutting.
 
-`warm-all` warms worktrees in parallel up to `[run].warm_concurrency` (default 4).
+`warm-all` warms worktrees in parallel up to `[run].warm_concurrency`
 
 ## Commands
 
