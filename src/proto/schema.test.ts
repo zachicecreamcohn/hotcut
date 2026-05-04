@@ -5,7 +5,7 @@ import {
   RegisterParams,
   RequestEnvelope,
   ResponseEnvelope,
-  TallyResult,
+  StatusResult,
 } from "./schema.js";
 
 describe("proto schema", () => {
@@ -53,8 +53,8 @@ describe("proto schema", () => {
     assert.equal(r.sources.length, 1);
   });
 
-  it("validates TallyResult shape", () => {
-    const r = TallyResult.parse({
+  it("validates StatusResult shape", () => {
+    const r = StatusResult.parse({
       projects: [
         {
           name: "p",

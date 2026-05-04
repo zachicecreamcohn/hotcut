@@ -1,7 +1,7 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
 import type { ProjectStatusDto } from "../proto/schema.js";
-import { TallyRenderer } from "./tally.js";
+import { StatusRenderer } from "./status.js";
 
 class CapturingStream {
   chunks: string[] = [];
@@ -15,10 +15,10 @@ class CapturingStream {
   }
 }
 
-describe("TallyRenderer", () => {
+describe("StatusRenderer", () => {
   it("renders a header and one line per source", () => {
     const out = new CapturingStream();
-    const renderer = new TallyRenderer({
+    const renderer = new StatusRenderer({
       out: out as unknown as NodeJS.WritableStream,
     });
     const project: ProjectStatusDto = {

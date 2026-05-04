@@ -11,8 +11,8 @@ import {
   LogsParams,
   RegisterParams,
   RegisterResult,
-  TallyParams,
-  TallyResult,
+  StatusParams,
+  StatusResult,
   UpParams,
   UpResult,
   METHODS,
@@ -48,8 +48,8 @@ export interface BuiltHandlers {
 
 export function buildHandlers(ctx: HandlerCtx): BuiltHandlers {
   const unary: Record<string, MethodHandler> = {
-    [METHODS.status]: async (params): Promise<TallyResult> => {
-      const p = TallyParams.parse(params ?? {});
+    [METHODS.status]: async (params): Promise<StatusResult> => {
+      const p = StatusParams.parse(params ?? {});
       let runtimes: ProjectRuntime[];
       if (p.allProjects) {
         runtimes = [...ctx.state.projects.values()];

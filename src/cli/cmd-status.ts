@@ -1,7 +1,7 @@
 import { Command } from "commander";
-import type { TallyResult } from "../proto/schema.js";
+import type { StatusResult } from "../proto/schema.js";
 import { connectDaemon, registerProject, resolveProject, exitForProtocolError } from "./client-helpers.js";
-import { TallyRenderer } from "./tally.js";
+import { StatusRenderer } from "./status.js";
 
 interface StatusOptions {
   json?: boolean;
@@ -23,11 +23,11 @@ async function runStatus(opts: StatusOptions): Promise<void> {
   const client = await connectDaemon();
   await registerProject(client, project).catch(exitForProtocolError);
 
-  const fetchOnce = async (): Promise<TallyResult> => {
-    return client.request<TallyResult>("status", { projectRoot: project.root });
+  const fetchOnce = async (): Promise<StatusResult> => {
+    return client.request<StatusResult>("status", { projectRoot: project.root });
   };
 
-  const renderer = new TallyRenderer();
+  const renderer = new StatusRenderer();
   const renderOnce = async (): Promise<void> => {
     const t = await fetchOnce().catch(exitForProtocolError);
     if (opts.json) {

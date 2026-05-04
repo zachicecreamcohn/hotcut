@@ -17,16 +17,16 @@ export const ProjectStatusDto = z.object({
 });
 export type ProjectStatusDto = z.infer<typeof ProjectStatusDto>;
 
-export const TallyParams = z.object({
+export const StatusParams = z.object({
   projectRoot: z.string().optional(),
   allProjects: z.boolean().optional(),
 });
-export type TallyParams = z.infer<typeof TallyParams>;
+export type StatusParams = z.infer<typeof StatusParams>;
 
-export const TallyResult = z.object({
+export const StatusResult = z.object({
   projects: z.array(ProjectStatusDto),
 });
-export type TallyResult = z.infer<typeof TallyResult>;
+export type StatusResult = z.infer<typeof StatusResult>;
 
 export const CutParams = z.object({
   projectRoot: z.string(),

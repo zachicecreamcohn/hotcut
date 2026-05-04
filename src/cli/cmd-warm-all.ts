@@ -1,7 +1,7 @@
 import { Command } from "commander";
-import type { TallyResult, UpResult } from "../proto/schema.js";
+import type { StatusResult, UpResult } from "../proto/schema.js";
 import { connectDaemon, registerProject, resolveProject, exitForProtocolError } from "./client-helpers.js";
-import { TallyRenderer } from "./tally.js";
+import { StatusRenderer } from "./status.js";
 import { log } from "../util/log.js";
 
 export function warmAllCommand(): Command {
@@ -12,9 +12,9 @@ export function warmAllCommand(): Command {
       const client = await connectDaemon();
       await registerProject(client, project).catch(exitForProtocolError);
 
-      const renderer = new TallyRenderer();
-      const fetchStatus = (): Promise<TallyResult> =>
-        client.request<TallyResult>("status", { projectRoot: project.root });
+      const renderer = new StatusRenderer();
+      const fetchStatus = (): Promise<StatusResult> =>
+        client.request<StatusResult>("status", { projectRoot: project.root });
 
       // Render the initial cold state immediately so the user sees the list
       // before warming begins. Otherwise nothing is printed until the first
@@ -27,11 +27,11 @@ export function warmAllCommand(): Command {
         .catch(exitForProtocolError) as Promise<UpResult>;
 
       let stop = false;
-      const settled = (t: TallyResult): boolean =>
+      const settled = (t: StatusResult): boolean =>
         t.projects.every((p) =>
           p.sources.every((s) => s.state === "warm" || s.state === "failed" || s.state === "cold"),
         );
-      const inFlight = (t: TallyResult): boolean =>
+      const inFlight = (t: StatusResult): boolean =>
         t.projects.some((p) => p.sources.some((s) => s.state === "starting"));
 
       const loop = async (): Promise<void> => {

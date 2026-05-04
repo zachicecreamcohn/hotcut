@@ -14,7 +14,7 @@ const STATE_LABEL: Record<SourceStatusDto["state"], string> = {
   failed: "failed",
 };
 
-export interface TallyOpts {
+export interface StatusRendererOpts {
   out?: NodeJS.WritableStream;
 }
 
@@ -23,12 +23,12 @@ export interface TallyOpts {
  * Slice 3+ no longer redraws — every render is a fresh write. Callers wanting
  * live updates poll the daemon and re-render.
  */
-export class TallyRenderer {
+export class StatusRenderer {
   private readonly out: NodeJS.WritableStream;
   private readonly isTty: boolean;
   private lastLines = 0;
 
-  constructor(opts: TallyOpts = {}) {
+  constructor(opts: StatusRendererOpts = {}) {
     this.out = opts.out ?? process.stderr;
     this.isTty = (this.out as NodeJS.WriteStream).isTTY === true;
   }
