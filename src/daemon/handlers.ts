@@ -155,11 +155,11 @@ export function buildHandlers(ctx: HandlerCtx): BuiltHandlers {
     [METHODS.logs]: async (params, ctl) => {
       const p = LogsParams.parse(params);
       const r = requireProject(ctx, p.projectRoot);
-      const source = r.getSource(p.name);
+      const source = r.getSource(p.name) ?? r.getShared(p.name);
       if (!source) {
         throw new ProtocolError(
           ERROR_CODES.SOURCE_NOT_FOUND,
-          "source not found: " + p.name,
+          "source or shared service not found: " + p.name,
         );
       }
       const buffer = source.logBuffer;

@@ -1,4 +1,8 @@
-import type { ProjectStatusDto, SourceStatusDto } from "../proto/schema.js";
+import type {
+  ProjectStatusDto,
+  SharedStatusDto,
+  SourceStatusDto,
+} from "../proto/schema.js";
 import { color } from "../util/color.js";
 
 const STATE_GLYPH: Record<SourceStatusDto["state"], string> = {
@@ -42,6 +46,13 @@ export class StatusRenderer {
     }
     for (const p of projects) {
       lines.push(color.bold(p.name));
+      if (p.shared && p.shared.length > 0) {
+        lines.push("  " + color.dim("shared:"));
+        const sharedWidth = p.shared.reduce((m, s) => Math.max(m, s.name.length), 0);
+        for (const s of p.shared) {
+          lines.push(renderShared(s, sharedWidth));
+        }
+      }
       const nameWidth = p.sources.reduce((m, s) => Math.max(m, s.name.length), 0);
       p.sources.forEach((s, i) => {
         const idx = color.dim(String(i + 1).padStart(2) + ")");
@@ -69,4 +80,12 @@ export class StatusRenderer {
       this.out.write("\x1b[1A\x1b[2K");
     }
   }
+}
+
+function renderShared(s: SharedStatusDto, nameWidth: number): string {
+  const glyph = STATE_GLYPH[s.state];
+  const label = STATE_LABEL[s.state];
+  const portRaw = s.port == null ? "—" : ":" + s.port;
+  const port = color.dim(portRaw.padStart(7));
+  return "    " + glyph + " " + s.name.padEnd(nameWidth) + " " + port + " " + label;
 }
