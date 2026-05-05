@@ -2,7 +2,11 @@
 
 hotcut keeps a development server warm for every git worktree at the same time, and puts a single proxy in front of them all. When you switch branches, the proxy cuts to the right worktree instantly — no cold restart, no juggling ports.
 
-This page introduces hotcut, walks you through getting started, and shows how to configure it for your project.
+## Why
+
+Git worktrees are the base of my dev flow — one worktree per branch (usually `.worktree/<ticket>`), one tmux session each. To avoid juggling ports, I'd kill the dev server in one session before starting it in another. Every switch meant a cold boot, which made peeking at another branch slower than it should be.
+
+hotcut keeps a dev server warm for every worktree at the same time and stands a single proxy in front of them. Switching is near instant now, and I never have to think about ports or starting/stopping servers.
 
 ## What hotcut does
 
