@@ -43,4 +43,56 @@ describe("StatusRenderer", () => {
     assert.match(lines[3]!, /cold/);
     assert.match(lines[3]!, /—/);
   });
+
+  it("renders a 'shared:' section when shared services are present", () => {
+    const out = new CapturingStream();
+    const renderer = new StatusRenderer({
+      out: out as unknown as NodeJS.WritableStream,
+    });
+    const project: ProjectStatusDto = {
+      name: "polypad",
+      root: "/x",
+      program: null,
+      proxyPort: 8080,
+      sources: [
+        { name: "PL-123", state: "cold", port: null, onProgram: false },
+      ],
+      shared: [
+        { name: "tts", state: "warm", port: 8081 },
+        { name: "temporal", state: "warm", port: null },
+      ],
+    };
+
+    renderer.render([project]);
+    const lines = out.text.split("\n").filter(Boolean);
+    // header + "shared:" + 2 shared + 1 source
+    assert.equal(lines.length, 5);
+    assert.equal(lines[0], "polypad");
+    assert.match(lines[1]!, /shared:/);
+    assert.match(lines[2]!, /tts/);
+    assert.match(lines[2]!, /:8081/);
+    assert.match(lines[2]!, /ready/);
+    assert.match(lines[3]!, /temporal/);
+    assert.match(lines[3]!, /—/);
+    assert.match(lines[4]!, /PL-123/);
+  });
+
+  it("omits the shared section when there are no shared services", () => {
+    const out = new CapturingStream();
+    const renderer = new StatusRenderer({
+      out: out as unknown as NodeJS.WritableStream,
+    });
+    renderer.render([
+      {
+        name: "p",
+        root: "/x",
+        program: null,
+        proxyPort: 8080,
+        sources: [{ name: "a", state: "cold", port: null, onProgram: false }],
+        shared: [],
+      },
+    ]);
+    const text = out.text;
+    assert.ok(!/shared:/.test(text));
+  });
 });
