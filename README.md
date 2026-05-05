@@ -73,7 +73,7 @@ Each worktree gets its own port via `$HOTCUT_PORT`; the proxy at `proxy_port` ro
 
 ## Shared services
 
-For processes that aren't worktree-specific (a stub API, a background worker, a local queue), declare them as `[[shared]]`. hotcut runs one of each per project, started when the project registers, stopped on `hotcut stop`. `cut` doesn't touch them.
+For processes that aren't worktree-specific (e.g. a separate API, a background worker), declare them as `[[shared]]`. hotcut runs one of each per project, started when the project registers, stopped on `hotcut stop`. These are not touched by the `cut` command in any way.
 
 ```toml
 [[shared]]
@@ -108,7 +108,7 @@ my-app
     ● ticket-123   :41000  ready    ← on program
 ```
 
-Shared services are addressable by name in `hotcut up <name>`, `hotcut down <name>`, and `hotcut logs <name>`.
+Shared services are addressable by name, just like worktrees: `hotcut <name> up`, `hotcut <name> down`, `hotcut <name> logs`.
 
 > Manage in `[run]` what changes between branches. Manage as `[[shared]]` what doesn't.
 
@@ -132,13 +132,13 @@ echo 'eval "$(hotcut completions zsh)"' >> ~/.zshrc && exec zsh
 
 ```
 hotcut <name>             cut to a worktree (warms if cold)
+hotcut <name> up          start one worktree or shared service
+hotcut <name> down        stop one worktree or shared service
+hotcut <name> logs [-f]   tail logs for a worktree or shared service
 hotcut status [-w]        show state; -w to watch
 hotcut warm-all           pre-warm every worktree
-hotcut up   [<name>]      start everything (or just one)
-hotcut down [<name>]      stop everything (or just one)
-hotcut logs <name> [-f]   logs for a worktree or shared service
 hotcut init               write hotcut.toml
-hotcut stop               stop the daemon
+hotcut stop               stop the daemon (and everything it supervises)
 ```
 
 ## Contributing

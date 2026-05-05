@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { logError } from "../util/log.js";
 import { runCut } from "./cmd-cut.js";
+import { runNameUp, runNameDown } from "./cmd-name-verb.js";
 import { statusCommand } from "./cmd-status.js";
 import { warmAllCommand } from "./cmd-warm-all.js";
 import { daemonCommand } from "./cmd-daemon.js";
@@ -34,8 +35,13 @@ const KNOWN_VERBS = new Set([
 async function main(): Promise<void> {
   const argv = process.argv.slice(2);
 
-  // Verb resolver: if the first arg is not a known subcommand, treat it as a
-  // worktree name. Optional second arg is a per-worktree verb (e.g. "logs").
+  // Verb resolver. If the first arg is not a known top-level subcommand, treat
+  // it as a name (worktree or shared service):
+  //
+  //   hotcut <name>            cut to it
+  //   hotcut <name> up         start it
+  //   hotcut <name> down       stop it
+  //   hotcut <name> logs ...   tail its logs (rewritten into commander)
   if (argv.length >= 1 && argv[0] && !argv[0].startsWith("-") && !KNOWN_VERBS.has(argv[0])) {
     const name = argv[0];
     const sub = argv[1];
@@ -43,11 +49,18 @@ async function main(): Promise<void> {
       await runCut(name);
       return;
     }
+    if (sub === "up") {
+      await runNameUp(name);
+      return;
+    }
+    if (sub === "down") {
+      await runNameDown(name);
+      return;
+    }
     if (sub === "logs") {
-      // Rewrite argv so commander sees: `hotcut logs <name> [rest...]`
       process.argv = [process.argv[0]!, process.argv[1]!, "logs", name, ...argv.slice(2)];
     } else {
-      logError("unknown subcommand for worktree '" + name + "': " + sub);
+      logError("unknown subcommand for '" + name + "': " + sub);
       process.exit(64);
     }
   }

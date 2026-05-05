@@ -22,7 +22,7 @@ _hotcut() {
     root=\$(_hotcut_root) || return
     [[ -d "\$root" ]] && compadd -- \${(f)"\$(ls -1 "\$root" 2>/dev/null)"}
   elif (( CURRENT == 3 )); then
-    compadd -- logs
+    compadd -- up down logs
   fi
 }
 
