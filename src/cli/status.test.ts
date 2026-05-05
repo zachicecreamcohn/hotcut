@@ -1,3 +1,7 @@
+// Force colour off so assertions are stable regardless of whether the test
+// runner is attached to a TTY. Must run before picocolors is imported.
+process.env.NO_COLOR = "1";
+
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
 import type { ProjectStatusDto } from "../proto/schema.js";

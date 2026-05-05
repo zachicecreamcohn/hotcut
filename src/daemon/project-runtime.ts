@@ -8,6 +8,7 @@ import { LogBuffer } from "../supervisor/log-buffer.js";
 import { Supervisor } from "../supervisor/supervisor.js";
 import type { Source } from "../supervisor/source.js";
 import { SharedService } from "../supervisor/shared-service.js";
+import type { Lifecycle } from "../supervisor/process-helpers.js";
 import {
   ERROR_CODES,
   ProtocolError,
@@ -44,6 +45,12 @@ export class ProjectRuntime {
   private watcher: DiscoveryWatcher | null = null;
   private readonly enableWatcher: boolean;
   private readonly shared: SharedService[];
+  /**
+   * Promises for in-flight eager-start of shared services. Tests await this
+   * to avoid polling; production code can ignore it (failures are also
+   * surfaced via `status`).
+   */
+  private sharedStartPromises: Promise<void>[] = [];
 
   constructor(opts: ProjectRuntimeOpts) {
     this.root = opts.root;
@@ -110,9 +117,11 @@ export class ProjectRuntime {
     // Eager start: bring up shared services as soon as the project is registered.
     // Failures are logged but don't block the project — partial startup is
     // visible via `hotcut status` and can be retried with `hotcut up`.
-    for (const sh of this.shared) {
-      sh.up().catch((err) => logError("shared service " + sh.name + " failed to start", err));
-    }
+    this.sharedStartPromises = this.shared.map((sh) =>
+      sh.up().catch((err) => {
+        logError("shared service " + sh.name + " failed to start", err);
+      }),
+    );
     if (this.enableWatcher) {
       this.watcher = new DiscoveryWatcher(this.root, this.config, {
         add: (src) => void this.onWatcherAdd(src),
@@ -130,6 +139,12 @@ export class ProjectRuntime {
   async register(discovered: DiscoveredSource): Promise<Source> {
     const existing = this.supervisor.get(discovered.name);
     if (existing) return existing;
+    if (this.shared.some((s) => s.name === discovered.name)) {
+      throw new ProtocolError(
+        ERROR_CODES.CONFIG_INVALID,
+        "worktree name '" + discovered.name + "' collides with a [[shared]] service of the same name; rename one",
+      );
+    }
     return this.supervisor.register(discovered);
   }
 
@@ -137,15 +152,9 @@ export class ProjectRuntime {
     if (this.shutdownInProgress) {
       throw new ProtocolError(ERROR_CODES.SHUTDOWN_IN_PROGRESS, "daemon shutting down");
     }
-    type Upable = { name: string; state: string; up(): Promise<void> };
-    let targets: Upable[];
+    let targets: Lifecycle[];
     if (name) {
-      const sh = this.shared.find((s) => s.name === name);
-      if (sh) {
-        targets = [sh];
-      } else {
-        targets = [this.requireSource(name)];
-      }
+      targets = [this.requireTarget(name)];
     } else {
       targets = [...this.supervisor.list(), ...this.shared];
     }
@@ -175,12 +184,9 @@ export class ProjectRuntime {
   }
 
   async down(name?: string): Promise<DownResult> {
-    type Downable = { name: string; state: string; down(): Promise<void> };
-    let targets: Downable[];
+    let targets: Lifecycle[];
     if (name) {
-      const sh = this.shared.find((s) => s.name === name);
-      if (sh) targets = [sh];
-      else targets = [this.requireSource(name)];
+      targets = [this.requireTarget(name)];
     } else {
       this.bus.clear();
       targets = [...this.supervisor.list(), ...this.shared];
@@ -254,7 +260,10 @@ export class ProjectRuntime {
     };
   }
 
+  private shutdownComplete = false;
+
   async shutdown(): Promise<void> {
+    if (this.shutdownComplete) return;
     this.shutdownInProgress = true;
     if (this.watcher) {
       await this.watcher.stop().catch(() => {});
@@ -267,6 +276,7 @@ export class ProjectRuntime {
     await this.supervisor.downAll();
     await Promise.allSettled(this.shared.map((s) => s.down()));
     await Promise.allSettled(this.shared.map((s) => s.closeLogBuffer()));
+    this.shutdownComplete = true;
   }
 
   private async onWatcherAdd(src: DiscoveredSource): Promise<void> {
@@ -298,6 +308,14 @@ export class ProjectRuntime {
     return this.shared.find((s) => s.name === name);
   }
 
+  /**
+   * Resolves once every shared service has either reached `warm` or `failed`.
+   * Useful in tests; production callers don't generally need to await this.
+   */
+  async whenSharedSettled(): Promise<void> {
+    await Promise.allSettled(this.sharedStartPromises);
+  }
+
   listSharedNames(): string[] {
     return this.shared.map((s) => s.name);
   }
@@ -321,5 +339,21 @@ export class ProjectRuntime {
       );
     }
     return s;
+  }
+
+  /**
+   * Resolve a name to either a worktree source or a shared service. The
+   * config-time validation in `ProjectConfig.superRefine` guarantees no
+   * name collisions, so we can pick whichever is present.
+   */
+  private requireTarget(name: string): Lifecycle {
+    const sh = this.shared.find((s) => s.name === name);
+    if (sh) return sh;
+    const src = this.supervisor.get(name);
+    if (src) return src;
+    throw new ProtocolError(
+      ERROR_CODES.SOURCE_NOT_FOUND,
+      "no worktree or shared service named: " + name,
+    );
   }
 }

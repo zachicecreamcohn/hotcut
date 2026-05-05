@@ -3,11 +3,16 @@ import { execa, type ResultPromise } from "execa";
 import { toMs } from "../config/duration.js";
 import type { ProjectConfig, SharedService as SharedServiceConfig } from "../config/schema.js";
 import { logError } from "../util/log.js";
-import { LogBuffer, type LogStream } from "./log-buffer.js";
+import { LogBuffer } from "./log-buffer.js";
+import {
+  expandEnv,
+  formatExitDiagnostic,
+  killGroup,
+  LineSplitter,
+  type Lifecycle,
+} from "./process-helpers.js";
 import { waitForHttpReady } from "./ready.js";
 import { StateMachine, type SourceState } from "./state.js";
-
-const ENV_VAR_PATTERN = /\$([A-Z_][A-Z0-9_]*)/g;
 
 export interface SharedServiceOpts {
   config: SharedServiceConfig;
@@ -25,7 +30,7 @@ export interface SharedServiceOpts {
  * StateMachine, and the http-ready helper, but a SharedService has no
  * worktreePath, an optional port, and "always-ready" as a valid ready check.
  */
-export class SharedService {
+export class SharedService implements Lifecycle {
   readonly name: string;
   readonly cwd: string;
   readonly port: number | null;
@@ -36,10 +41,12 @@ export class SharedService {
   readonly logBuffer: LogBuffer;
   private readonly ownsLogBuffer: boolean;
   private downRequested = false;
-  private stdoutCarry = "";
-  private stderrCarry = "";
+  private splitter: LineSplitter;
   private child: ResultPromise | null = null;
   private abort: AbortController | null = null;
+  /** Number of consecutive crash-restarts since last successful warm. */
+  private restartAttempts = 0;
+  private restartTimer: NodeJS.Timeout | null = null;
 
   constructor(opts: SharedServiceOpts) {
     this.cfg = opts.config;
@@ -54,6 +61,7 @@ export class SharedService {
       this.logBuffer = new LogBuffer({ bufferLines: opts.projectConfig.log.buffer_lines });
       this.ownsLogBuffer = true;
     }
+    this.splitter = new LineSplitter(this.logBuffer);
   }
 
   get state(): SourceState {
@@ -87,14 +95,23 @@ export class SharedService {
     }
 
     if (this.machine.is("starting")) this.machine.transition("warm");
+    // Successful warm — reset the backoff counter so the next crash starts
+    // from `backoff_initial` again.
+    this.restartAttempts = 0;
   }
 
   async down(): Promise<void> {
-    if (this.machine.is("cold")) return;
     this.downRequested = true;
-    this.abort?.abort("shared.down");
-    await this.killChild();
-    if (!this.machine.is("cold")) this.machine.transition("cold");
+    if (this.restartTimer) {
+      clearTimeout(this.restartTimer);
+      this.restartTimer = null;
+    }
+    if (!this.machine.is("cold")) {
+      this.abort?.abort("shared.down");
+      await this.killChild();
+      if (!this.machine.is("cold")) this.machine.transition("cold");
+    }
+    this.restartAttempts = 0;
     this.downRequested = false;
   }
 
@@ -126,8 +143,8 @@ export class SharedService {
       reject: false,
       detached: true,
     });
-    child.stdout?.on("data", (b: Buffer) => this.onChunk("stdout", b));
-    child.stderr?.on("data", (b: Buffer) => this.onChunk("stderr", b));
+    child.stdout?.on("data", (b: Buffer) => this.splitter.feed("stdout", b));
+    child.stderr?.on("data", (b: Buffer) => this.splitter.feed("stderr", b));
     return child;
   }
 
@@ -137,12 +154,35 @@ export class SharedService {
         if (this.machine.is("cold") || this.downRequested) return;
         this.machine.transition("failed");
         if (!result.isCanceled) {
-          logError(
-            `shared service ${this.name} exited unexpectedly (code=${result.exitCode ?? "?"})`,
-          );
+          logError(formatExitDiagnostic("shared service", this.name, result, this.logBuffer));
         }
+        this.maybeScheduleRestart();
       })
       .catch((err) => logError(`shared service ${this.name} exit handler errored`, err));
+  }
+
+  /**
+   * If the user opted in to `restart.on_crash`, schedule another `up()` with
+   * exponential backoff (capped at `restart.backoff_max`). The counter is
+   * reset by a successful `up()`. `down()` cancels any pending restart.
+   */
+  private maybeScheduleRestart(): void {
+    const restart = this.cfg.restart;
+    if (!restart.on_crash) return;
+    if (this.downRequested) return;
+    const initialMs = toMs(restart.backoff_initial);
+    const maxMs = toMs(restart.backoff_max);
+    const delay = Math.min(maxMs, initialMs * Math.pow(2, this.restartAttempts));
+    this.restartAttempts += 1;
+    this.restartTimer = setTimeout(() => {
+      this.restartTimer = null;
+      // up() guards against state != cold|failed and against shutdown.
+      this.up().catch((err) =>
+        logError(`shared service ${this.name} restart attempt failed`, err),
+      );
+    }, delay);
+    // Don't keep the event loop alive just for the restart timer.
+    this.restartTimer.unref();
   }
 
   private async killChild(): Promise<void> {
@@ -164,17 +204,6 @@ export class SharedService {
     }
   }
 
-  private onChunk(stream: LogStream, chunk: Buffer): void {
-    const text = chunk.toString("utf8");
-    const carry = stream === "stdout" ? this.stdoutCarry : this.stderrCarry;
-    const combined = carry + text;
-    const parts = combined.split("\n");
-    const trailing = parts.pop() ?? "";
-    if (stream === "stdout") this.stdoutCarry = trailing;
-    else this.stderrCarry = trailing;
-    for (const line of parts) this.logBuffer.append(stream, line);
-  }
-
   private buildEnv(): NodeJS.ProcessEnv {
     const subs: Record<string, string> = {
       HOTCUT_NAME: this.name,
@@ -183,24 +212,9 @@ export class SharedService {
       HOTCUT_SCOPE: "shared",
     };
     if (this.port != null) subs.HOTCUT_PORT = String(this.port);
-    const out: NodeJS.ProcessEnv = { ...process.env, ...subs };
+    const expanded = expandEnv(this.cfg.env, subs);
+    const out: NodeJS.ProcessEnv = { ...process.env, ...subs, ...expanded };
     if (this.port != null) out.PORT = String(this.port);
-    for (const [k, v] of Object.entries(this.cfg.env)) {
-      out[k] = v.replace(ENV_VAR_PATTERN, (_m, n: string) => subs[n] ?? process.env[n] ?? "");
-    }
     return out;
-  }
-}
-
-function killGroup(pid: number | undefined, signal: "SIGTERM" | "SIGKILL"): void {
-  if (!pid) return;
-  try {
-    process.kill(-pid, signal);
-  } catch {
-    try {
-      process.kill(pid, signal);
-    } catch {
-      // already dead
-    }
   }
 }

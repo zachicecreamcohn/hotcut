@@ -92,10 +92,11 @@ cmd  = "node ./scripts/queue-worker.js"
 | `name` | — | required, unique per project |
 | `cmd` | — | required, runs from the project root |
 | `cwd` | `.` | relative to project root |
-| `port` | — | when set, exposed as `PORT`/`HOTCUT_PORT` and reserved |
+| `port` | — | when set, exposed as `PORT`/`HOTCUT_PORT` and excluded from the worktree port pool (which starts at `41000`) |
 | `ready` | `{ always = true }` | or `{ http = "/path", timeout, poll_interval }` (requires `port`) |
 | `env` | `{}` | `$VAR` substitution from `HOTCUT_*` and the parent env |
 | `shutdown_timeout` | `5s` | grace before SIGKILL |
+| `restart` | `{ on_crash = true, backoff_initial = "1s", backoff_max = "30s" }` | auto-restart on unexpected exit with exponential backoff. Set `on_crash = false` to disable |
 
 In status:
 

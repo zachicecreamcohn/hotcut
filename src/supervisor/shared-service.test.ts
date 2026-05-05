@@ -95,6 +95,64 @@ describe("SharedService", () => {
     assert.equal(svc.state, "cold");
   });
 
+  it("restarts after a crash when restart.on_crash is true (default)", async () => {
+    // Crash and exit immediately the first time, then run forever the second.
+    // The marker file lets us detect the second run.
+    const markerPath = join(dir, "ran-twice");
+    const FIXTURE = `
+const fs = require("node:fs");
+const exists = fs.existsSync("${markerPath}");
+if (!exists) {
+  fs.writeFileSync("${markerPath}", "1");
+  process.exit(1);
+}
+setInterval(() => {}, 1 << 30);
+`;
+    await writeFile(join(dir, "flaky.js"), FIXTURE);
+    const projectConfig = buildConfig({
+      name: "flaky",
+      cmd: "node flaky.js",
+      restart: { backoff_initial: "50ms", backoff_max: "100ms" },
+    });
+    const sharedCfg = projectConfig.shared[0]!;
+
+    svc = new SharedService({
+      config: sharedCfg,
+      projectRoot: dir,
+      projectConfig,
+    });
+
+    await svc.up();
+    // First run will exit immediately; wait for the auto-restart.
+    for (let i = 0; i < 30; i++) {
+      if (svc.state === "warm" && svc.pid != null) break;
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    assert.equal(svc.state, "warm");
+    assert.notEqual(svc.pid, null);
+  });
+
+  it("does not restart when restart.on_crash is false", async () => {
+    const FIXTURE = "process.exit(1);\n";
+    await writeFile(join(dir, "die.js"), FIXTURE);
+    const projectConfig = buildConfig({
+      name: "die",
+      cmd: "node die.js",
+      restart: { on_crash: false },
+    });
+    const sharedCfg = projectConfig.shared[0]!;
+
+    svc = new SharedService({
+      config: sharedCfg,
+      projectRoot: dir,
+      projectConfig,
+    });
+    await svc.up();
+    // Wait long enough that a restart, if it happened, would be visible.
+    await new Promise((r) => setTimeout(r, 200));
+    assert.equal(svc.state, "failed");
+  });
+
   it("uses cwd resolved against project root", async () => {
     await writeFile(join(dir, "worker.js"), SLEEP_FIXTURE);
     const projectConfig = buildConfig({

@@ -18,6 +18,8 @@ export function logsCommand(): Command {
     });
 }
 
+export const runLogsForName = (name: string, opts: LogsOptions): Promise<void> => runLogs(name, opts);
+
 async function runLogs(name: string, opts: LogsOptions): Promise<void> {
   const project = await resolveProject();
   const client = await connectDaemon();

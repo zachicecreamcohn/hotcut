@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { logError } from "../util/log.js";
 import { runCut } from "./cmd-cut.js";
-import { runNameUp, runNameDown } from "./cmd-name-verb.js";
+import { runNameUp, runNameDown, runNameLogs } from "./cmd-name-verb.js";
 import { statusCommand } from "./cmd-status.js";
 import { warmAllCommand } from "./cmd-warm-all.js";
 import { daemonCommand } from "./cmd-daemon.js";
@@ -58,11 +58,14 @@ async function main(): Promise<void> {
       return;
     }
     if (sub === "logs") {
-      process.argv = [process.argv[0]!, process.argv[1]!, "logs", name, ...argv.slice(2)];
-    } else {
-      logError("unknown subcommand for '" + name + "': " + sub);
-      process.exit(64);
+      const rest = argv.slice(2);
+      const follow = rest.includes("-f") || rest.includes("--follow");
+      const json = rest.includes("--json");
+      await runNameLogs(name, { follow, json });
+      return;
     }
+    logError("unknown subcommand for '" + name + "': " + sub);
+    process.exit(64);
   }
 
   const program = new Command();

@@ -2,8 +2,7 @@ import { Command } from "commander";
 import type { StatusResult, UpResult } from "../proto/schema.js";
 import { connectDaemon, registerProject, resolveProject, exitForProtocolError } from "./client-helpers.js";
 import { StatusRenderer } from "./status.js";
-import { log } from "../util/log.js";
-import { color } from "../util/color.js";
+import { logUpFailure } from "./format.js";
 
 export function warmAllCommand(): Command {
   return new Command("warm-all")
@@ -55,9 +54,7 @@ export function warmAllCommand(): Command {
       const final = await fetchStatus().catch(() => null);
       if (final) renderer.render(final.projects);
 
-      for (const f of result.failed) {
-        log(color.red("✖ failed ") + color.bold(f.name) + ": " + f.error.split("\n")[0]);
-      }
+      for (const f of result.failed) logUpFailure(f);
       client.close();
       if (result.failed.length) process.exit(1);
     });

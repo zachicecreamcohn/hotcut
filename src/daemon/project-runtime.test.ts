@@ -135,10 +135,7 @@ describe("ProjectRuntime", () => {
 
     // Eager start is fire-and-forget; for an always-ready service the
     // transition to warm happens synchronously after spawn. Wait briefly.
-    for (let i = 0; i < 20; i++) {
-      if (runtime.status().shared[0]?.state === "warm") break;
-      await new Promise((r) => setTimeout(r, 50));
-    }
+    await runtime.whenSharedSettled();
     const t = runtime.status();
     assert.equal(t.shared.length, 1);
     assert.equal(t.shared[0]!.name, "tts");
@@ -171,10 +168,7 @@ describe("ProjectRuntime", () => {
     for (const d of discovered) await runtime.register(d);
 
     // Wait for shared to warm
-    for (let i = 0; i < 20; i++) {
-      if (runtime.status().shared[0]?.state === "warm") break;
-      await new Promise((r) => setTimeout(r, 50));
-    }
+    await runtime.whenSharedSettled();
     const sharedPidBefore = runtime.getShared("tts")!.pid;
 
     await runtime.up("A");
@@ -194,17 +188,32 @@ describe("ProjectRuntime", () => {
     assert.equal(runtime.getSource("tts"), undefined);
   });
 
+  it("rejects a worktree whose name collides with a shared service", async () => {
+    await writeFile(join(dir, "shared.js"), SHARED_FIXTURE);
+    const proxyPort = await findFreePort({ start: PORT_RANGE_START });
+    const config = ProjectConfig.parse({
+      project: { name: "p", proxy_port: proxyPort },
+      run: {
+        cmd: "node server.js",
+        ready: { http: "/", timeout: "5s", poll_interval: "100ms" },
+      },
+      shared: [{ name: "A", cmd: "node shared.js" }], // collides with worktree A
+    });
+    runtime = new ProjectRuntime({ root: dir, config, portRangeStart: PORT_RANGE_START });
+    await runtime.start();
+    await assert.rejects(
+      () => runtime!.register({ name: "A", worktreePath: join(dir, ".worktree", "A") }),
+      /collides with a \[\[shared\]\] service/,
+    );
+  });
+
   it("shutdown stops shared services", async () => {
     await writeFile(join(dir, "shared.js"), SHARED_FIXTURE);
     const config = await makeConfigWithShared();
     runtime = new ProjectRuntime({ root: dir, config, portRangeStart: PORT_RANGE_START });
     await runtime.start();
-    for (let i = 0; i < 20; i++) {
-      if (runtime.status().shared[0]?.state === "warm") break;
-      await new Promise((r) => setTimeout(r, 50));
-    }
+    await runtime.whenSharedSettled();
     await runtime.shutdown();
     assert.equal(runtime.status().shared[0]!.state, "cold");
-    runtime = null;
   });
 });

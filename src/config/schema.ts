@@ -26,6 +26,18 @@ const SharedReady = z
   ])
   .default({ always: true });
 
+const SharedRestart = z
+  .object({
+    on_crash: z.boolean().default(true),
+    backoff_initial: Duration.default("1s"),
+    backoff_max: Duration.default("30s"),
+  })
+  .default({
+    on_crash: true,
+    backoff_initial: "1s",
+    backoff_max: "30s",
+  });
+
 const SharedService = z.object({
   name: z.string().min(1),
   cmd: z.string().min(1),
@@ -34,6 +46,7 @@ const SharedService = z.object({
   ready: SharedReady,
   env: z.record(z.string(), z.string()).default({}),
   shutdown_timeout: Duration.default(DEFAULTS.run.shutdownTimeout),
+  restart: SharedRestart,
 });
 export type SharedService = z.infer<typeof SharedService>;
 
