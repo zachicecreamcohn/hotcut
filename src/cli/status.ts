@@ -1,17 +1,18 @@
 import type { ProjectStatusDto, SourceStatusDto } from "../proto/schema.js";
+import { color } from "../util/color.js";
 
 const STATE_GLYPH: Record<SourceStatusDto["state"], string> = {
-  cold: "○",
-  starting: "◐",
-  warm: "●",
-  failed: "✖",
+  cold: color.gray("○"),
+  starting: color.yellow("◐"),
+  warm: color.green("●"),
+  failed: color.red("✖"),
 };
 
 const STATE_LABEL: Record<SourceStatusDto["state"], string> = {
-  cold: "cold",
-  starting: "warming",
-  warm: "ready",
-  failed: "failed",
+  cold: color.gray("cold".padEnd(8)),
+  starting: color.yellow("warming".padEnd(8)),
+  warm: color.green("ready".padEnd(8)),
+  failed: color.red("failed".padEnd(8)),
 };
 
 export interface StatusRendererOpts {
@@ -37,20 +38,20 @@ export class StatusRenderer {
     if (this.isTty) this.eraseLast();
     const lines: string[] = [];
     if (projects.length === 0) {
-      lines.push("(no projects registered)");
+      lines.push(color.dim("(no projects registered)"));
     }
     for (const p of projects) {
-      lines.push(p.name);
+      lines.push(color.bold(p.name));
       const nameWidth = p.sources.reduce((m, s) => Math.max(m, s.name.length), 0);
       p.sources.forEach((s, i) => {
-        const idx = String(i + 1).padStart(2);
+        const idx = color.dim(String(i + 1).padStart(2) + ")");
         const glyph = STATE_GLYPH[s.state];
         const label = STATE_LABEL[s.state];
-        const port = s.port == null ? "—" : ":" + s.port;
-        const arrow = s.onProgram ? "  ← on program" : "";
-        lines.push(
-          "  " + idx + ") " + glyph + " " + s.name.padEnd(nameWidth) + " " + port.padStart(7) + " " + label.padEnd(8) + arrow,
-        );
+        const portRaw = s.port == null ? "—" : ":" + s.port;
+        const port = color.dim(portRaw.padStart(7));
+        const name = s.onProgram ? color.cyan(s.name.padEnd(nameWidth)) : s.name.padEnd(nameWidth);
+        const arrow = s.onProgram ? "  " + color.cyan("← on program") : "";
+        lines.push("  " + idx + " " + glyph + " " + name + " " + port + " " + label + arrow);
       });
     }
     for (const l of lines) this.out.write(l + "\n");

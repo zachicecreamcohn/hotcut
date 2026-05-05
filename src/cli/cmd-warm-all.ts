@@ -3,6 +3,7 @@ import type { StatusResult, UpResult } from "../proto/schema.js";
 import { connectDaemon, registerProject, resolveProject, exitForProtocolError } from "./client-helpers.js";
 import { StatusRenderer } from "./status.js";
 import { log } from "../util/log.js";
+import { color } from "../util/color.js";
 
 export function warmAllCommand(): Command {
   return new Command("warm-all")
@@ -55,7 +56,7 @@ export function warmAllCommand(): Command {
       if (final) renderer.render(final.projects);
 
       for (const f of result.failed) {
-        log("failed " + f.name + ": " + f.error.split("\n")[0]);
+        log(color.red("✖ failed ") + color.bold(f.name) + ": " + f.error.split("\n")[0]);
       }
       client.close();
       if (result.failed.length) process.exit(1);
