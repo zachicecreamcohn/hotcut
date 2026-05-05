@@ -56,6 +56,57 @@ PORT = "$HOTCUT_PORT"
 
 Each warmed worktree binds its own port (allocated by hotcut and exposed as `$HOTCUT_PORT`); the proxy at `proxy_port` then routes to whichever worktree is "on program." Your dev server must read its port from the environment; otherwise, every worktree may fight over the same port and only the first will start. Most node frameworks already honor `process.env.PORT`, so you can map it via the `[env]` block as shown.
 
+## Shared services
+
+Some processes are not worktree-specific — a TTS dev server, a temporal worker, a local message queue. You don't want hotcut to thrash them on every cut, but you also don't want to remember to start them by hand.
+
+Declare them as `[[shared]]`. Hotcut runs **one** of each per project, started when the daemon registers the project, stopped on `hotcut stop`. `cut` does not touch them.
+
+```toml
+[[shared]]
+name = "tts"
+cmd  = "yarn workspace text-to-speech-api dev-server"
+port = 8081                           # optional. injected as $PORT and reserved
+ready = { http = "/health", timeout = "30s" }
+
+[[shared]]
+name = "temporal"
+cmd  = "npx nx run packages/temporal:dev-worker"
+ready = { always = true }              # default; consider ready as soon as it spawns
+```
+
+Per-service fields:
+
+| field | required | default | meaning |
+|---|---|---|---|
+| `name` | yes | — | unique per project; used by `logs` and `up`/`down` |
+| `cmd` | yes | — | shell command run from the project root |
+| `cwd` | no | `.` | relative to the project root |
+| `port` | no | — | when set, exposed as `$PORT` and `$HOTCUT_PORT`; reserved so worktree port discovery skips it |
+| `ready` | no | `{ always = true }` | `{ http = "/path", timeout, poll_interval }` (requires `port`) or `{ always = true }` |
+| `env` | no | `{}` | extra env vars; supports `$VAR` substitution from `$HOTCUT_*` and the parent env |
+| `shutdown_timeout` | no | `5s` | grace period before SIGKILL |
+
+Status:
+
+```sh
+$ hotcut status
+my-app
+  shared:
+    ● tts        :8081  ready
+    ● temporal     —    ready
+   1) ● ticket-123 :41000 ready  ← on program
+   2) ○ ticket-456   —   cold
+```
+
+Shared services participate in `hotcut up` (warm everything) and `hotcut down` (stop everything), and are addressable by name in `hotcut up <name>`, `hotcut down <name>`, and `hotcut logs <name>`.
+
+### When to use shared vs per-worktree
+
+> Manage in hotcut what swaps when you cut. Manage as `[[shared]]` what stays the same across worktrees.
+
+If TTS is a stable backend that all of your worktrees can talk to, make it shared. If you start frequently editing the TTS code on a feature branch and want a separate instance per worktree, promote it to `[run]` (the default per-worktree service) — or, in a future version, multiple `[[service]]` entries.
+
 ## Shell integration
 
 Auto-cut on tmux session change (assumes session name = worktree name):
