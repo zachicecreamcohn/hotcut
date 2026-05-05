@@ -58,20 +58,20 @@ Each warmed worktree binds its own port (allocated by hotcut and exposed as `$HO
 
 ## Shared services
 
-Some processes are not worktree-specific — a TTS dev server, a temporal worker, a local message queue. You don't want hotcut to thrash them on every cut, but you also don't want to remember to start them by hand.
+Some processes aren't worktree-specific — a local job runner, a background worker, a stub for an external dependency. You don't want hotcut to thrash them on every cut, but you also don't want to remember to start them by hand.
 
 Declare them as `[[shared]]`. Hotcut runs **one** of each per project, started when the daemon registers the project, stopped on `hotcut stop`. `cut` does not touch them.
 
 ```toml
 [[shared]]
-name = "tts"
-cmd  = "yarn workspace text-to-speech-api dev-server"
-port = 8081                           # optional. injected as $PORT and reserved
+name = "stub-api"
+cmd  = "node ./scripts/stub-api.js"
+port = 9100                           # optional. injected as $PORT and reserved
 ready = { http = "/health", timeout = "30s" }
 
 [[shared]]
-name = "temporal"
-cmd  = "npx nx run packages/temporal:dev-worker"
+name = "queue-worker"
+cmd  = "node ./scripts/queue-worker.js"
 ready = { always = true }              # default; consider ready as soon as it spawns
 ```
 
@@ -93,8 +93,8 @@ Status:
 $ hotcut status
 my-app
   shared:
-    ● tts        :8081  ready
-    ● temporal     —    ready
+    ● stub-api      :9100  ready
+    ● queue-worker    —    ready
    1) ● ticket-123 :41000 ready  ← on program
    2) ○ ticket-456   —   cold
 ```
@@ -105,7 +105,7 @@ Shared services participate in `hotcut up` (warm everything) and `hotcut down` (
 
 > Manage in hotcut what swaps when you cut. Manage as `[[shared]]` what stays the same across worktrees.
 
-If TTS is a stable backend that all of your worktrees can talk to, make it shared. If you start frequently editing the TTS code on a feature branch and want a separate instance per worktree, promote it to `[run]` (the default per-worktree service) — or, in a future version, multiple `[[service]]` entries.
+If a service is a stable backend that all of your worktrees can talk to, make it shared. If you start frequently editing its code on a feature branch and want a separate instance per worktree, promote it to `[run]` (the default per-worktree service) — or, in a future version, multiple `[[service]]` entries.
 
 ## Shell integration
 
