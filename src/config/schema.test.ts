@@ -40,4 +40,58 @@ describe("ProjectConfig", () => {
     });
     assert.equal(out.success, false);
   });
+
+  it("accepts a shared service with always-ready", () => {
+    const out = ProjectConfig.parse({
+      project: { name: "p" },
+      run: { cmd: "x" },
+      shared: [{ name: "tts", cmd: "yarn dev" }],
+    });
+    assert.equal(out.shared.length, 1);
+    const s = out.shared[0]!;
+    assert.equal(s.name, "tts");
+    assert.equal(s.cwd, ".");
+    assert.equal(s.port, undefined);
+    assert.deepEqual(s.ready, { always: true });
+  });
+
+  it("accepts a shared service with http readiness when port is given", () => {
+    const out = ProjectConfig.parse({
+      project: { name: "p" },
+      run: { cmd: "x" },
+      shared: [
+        {
+          name: "tts",
+          cmd: "yarn dev",
+          port: 8081,
+          ready: { http: "/health" },
+        },
+      ],
+    });
+    const ready = out.shared[0]!.ready;
+    if (!("http" in ready)) throw new Error("expected http ready");
+    assert.equal(ready.http, "/health");
+    assert.equal(ready.timeout, "30s");
+  });
+
+  it("rejects shared http readiness without a port", () => {
+    const out = ProjectConfig.safeParse({
+      project: { name: "p" },
+      run: { cmd: "x" },
+      shared: [{ name: "tts", cmd: "yarn dev", ready: { http: "/" } }],
+    });
+    assert.equal(out.success, false);
+  });
+
+  it("rejects duplicate shared service names", () => {
+    const out = ProjectConfig.safeParse({
+      project: { name: "p" },
+      run: { cmd: "x" },
+      shared: [
+        { name: "tts", cmd: "a" },
+        { name: "tts", cmd: "b" },
+      ],
+    });
+    assert.equal(out.success, false);
+  });
 });

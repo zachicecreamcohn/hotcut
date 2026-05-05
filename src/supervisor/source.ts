@@ -2,7 +2,14 @@ import { execa, type ResultPromise } from "execa";
 import { toMs } from "../config/duration.js";
 import type { ProjectConfig } from "../config/schema.js";
 import { logError } from "../util/log.js";
-import { LogBuffer, type LogStream } from "./log-buffer.js";
+import { LogBuffer } from "./log-buffer.js";
+import {
+  expandEnv,
+  formatExitDiagnostic,
+  killGroup,
+  LineSplitter,
+  type Lifecycle,
+} from "./process-helpers.js";
 import { waitForHttpReady } from "./ready.js";
 import { StateMachine, type SourceState } from "./state.js";
 
@@ -14,9 +21,7 @@ export interface SourceOpts {
   logBuffer?: LogBuffer;
 }
 
-const ENV_VAR_PATTERN = /\$([A-Z_][A-Z0-9_]*)/g;
-
-export class Source {
+export class Source implements Lifecycle {
   readonly name: string;
   readonly worktreePath: string;
   readonly port: number;
@@ -26,8 +31,7 @@ export class Source {
   private downRequested = false;
   readonly logBuffer: LogBuffer;
   private readonly ownsLogBuffer: boolean;
-  private stdoutCarry = "";
-  private stderrCarry = "";
+  private splitter: LineSplitter;
   private child: ResultPromise | null = null;
   private abort: AbortController | null = null;
 
@@ -45,6 +49,7 @@ export class Source {
       });
       this.ownsLogBuffer = true;
     }
+    this.splitter = new LineSplitter(this.logBuffer);
   }
 
   get state(): SourceState {
@@ -113,8 +118,8 @@ export class Source {
       detached: true,
     });
 
-    child.stdout?.on("data", (b: Buffer) => this.onChunk("stdout", b));
-    child.stderr?.on("data", (b: Buffer) => this.onChunk("stderr", b));
+    child.stdout?.on("data", (b: Buffer) => this.splitter.feed("stdout", b));
+    child.stderr?.on("data", (b: Buffer) => this.splitter.feed("stderr", b));
 
     return child;
   }
@@ -126,9 +131,7 @@ export class Source {
         if (this.machine.is("cold") || this.downRequested) return;
         this.machine.transition("failed");
         if (!result.isCanceled) {
-          logError(
-            `source ${this.name} exited unexpectedly (code=${result.exitCode ?? "?"})`,
-          );
+          logError(formatExitDiagnostic("source", this.name, result, this.logBuffer));
         }
       })
       .catch((err) => logError(`source ${this.name} exit handler errored`, err));
@@ -155,19 +158,6 @@ export class Source {
     }
   }
 
-  private onChunk(stream: LogStream, chunk: Buffer): void {
-    const text = chunk.toString("utf8");
-    const carry = stream === "stdout" ? this.stdoutCarry : this.stderrCarry;
-    const combined = carry + text;
-    const parts = combined.split("\n");
-    const trailing = parts.pop() ?? "";
-    if (stream === "stdout") this.stdoutCarry = trailing;
-    else this.stderrCarry = trailing;
-    for (const line of parts) {
-      this.logBuffer.append(stream, line);
-    }
-  }
-
   /** Release log file handles. Safe to call multiple times. */
   async closeLogBuffer(): Promise<void> {
     if (this.ownsLogBuffer) await this.logBuffer.close();
@@ -180,28 +170,8 @@ export class Source {
       HOTCUT_PROJECT: this.config.project.name,
       HOTCUT_ROOT: this.worktreePath,
     };
-    const out: NodeJS.ProcessEnv = { ...process.env, ...subs };
-    for (const [k, v] of Object.entries(this.config.env)) {
-      out[k] = v.replace(ENV_VAR_PATTERN, (_m, name: string) => {
-        return subs[name] ?? process.env[name] ?? "";
-      });
-    }
-    return out;
-  }
-}
-
-function killGroup(pid: number | undefined, signal: "SIGTERM" | "SIGKILL"): void {
-  if (!pid) return;
-  try {
-    // Negative pid signals the whole process group (created via detached: true).
-    process.kill(-pid, signal);
-  } catch {
-    // Group already gone — fall back to direct kill in case the leader survived.
-    try {
-      process.kill(pid, signal);
-    } catch {
-      // already dead
-    }
+    const expanded = expandEnv(this.config.env as Record<string, string>, subs);
+    return { ...process.env, ...subs, ...expanded };
   }
 }
 

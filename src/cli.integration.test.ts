@@ -125,7 +125,7 @@ describe("cli integration", () => {
     }
   });
 
-  it("hotcut <worktree> logs is equivalent to hotcut logs <worktree>", async () => {
+  it("hotcut <name> logs is equivalent to hotcut logs <name>", async () => {
     await runCli(["A"]);
     await new Promise((r) => setTimeout(r, 200));
     const r = await runCli(["A", "logs", "--json"]);
@@ -138,11 +138,28 @@ describe("cli integration", () => {
     }
   });
 
+  it("hotcut <name> up starts a single source", async () => {
+    await runCli(["A", "up"]);
+    const status = JSON.parse((await runCli(["status", "--json"])).stdout);
+    const a = status.projects[0].sources.find((s: { name: string }) => s.name === "A");
+    assert.equal(a.state, "warm");
+    const b = status.projects[0].sources.find((s: { name: string }) => s.name === "B");
+    assert.equal(b.state, "cold");
+  });
+
+  it("hotcut <name> down stops a single source", async () => {
+    await runCli(["A", "up"]);
+    await runCli(["A", "down"]);
+    const status = JSON.parse((await runCli(["status", "--json"])).stdout);
+    const a = status.projects[0].sources.find((s: { name: string }) => s.name === "A");
+    assert.equal(a.state, "cold");
+  });
+
   it("hotcut <worktree> <unknown> errors", async () => {
     await assert.rejects(
       runCli(["A", "bogus"]),
       (err: { stderr?: string; code?: number }) => {
-        assert.match(err.stderr ?? "", /unknown subcommand for worktree 'A': bogus/);
+        assert.match(err.stderr ?? "", /unknown subcommand for 'A': bogus/);
         return true;
       },
     );

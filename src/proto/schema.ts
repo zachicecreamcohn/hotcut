@@ -8,12 +8,20 @@ export const SourceStatusDto = z.object({
 });
 export type SourceStatusDto = z.infer<typeof SourceStatusDto>;
 
+export const SharedStatusDto = z.object({
+  name: z.string(),
+  state: z.enum(["cold", "starting", "warm", "failed"]),
+  port: z.number().int().nullable(),
+});
+export type SharedStatusDto = z.infer<typeof SharedStatusDto>;
+
 export const ProjectStatusDto = z.object({
   name: z.string(),
   root: z.string(),
   program: z.string().nullable(),
   proxyPort: z.number().int(),
   sources: z.array(SourceStatusDto),
+  shared: z.array(SharedStatusDto).default([]),
 });
 export type ProjectStatusDto = z.infer<typeof ProjectStatusDto>;
 

@@ -34,6 +34,25 @@ async function makeConfig(cmd = "node server.js") {
   });
 }
 
+const SHARED_FIXTURE = `
+process.stdout.write("shared up: " + process.env.HOTCUT_NAME + "\\n");
+setInterval(() => {}, 1 << 30);
+`;
+
+async function makeConfigWithShared() {
+  const proxyPort = await findFreePort({ start: PORT_RANGE_START });
+  return ProjectConfig.parse({
+    project: { name: "p", proxy_port: proxyPort },
+    run: {
+      cmd: "node server.js",
+      ready: { http: "/", timeout: "5s", poll_interval: "100ms" },
+    },
+    shared: [
+      { name: "tts", cmd: "node shared.js" },
+    ],
+  });
+}
+
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), "hotcut-rt-"));
   await mkdir(join(dir, ".worktree"));
@@ -106,5 +125,95 @@ describe("ProjectRuntime", () => {
     runtime = new ProjectRuntime({ root: dir, config, portRangeStart: PORT_RANGE_START });
     await runtime.start();
     await assert.rejects(() => runtime!.cut("nope"), /source not found/);
+  });
+
+  it("starts shared services eagerly and exposes them in status", async () => {
+    await writeFile(join(dir, "shared.js"), SHARED_FIXTURE);
+    const config = await makeConfigWithShared();
+    runtime = new ProjectRuntime({ root: dir, config, portRangeStart: PORT_RANGE_START });
+    await runtime.start();
+
+    // Eager start is fire-and-forget; for an always-ready service the
+    // transition to warm happens synchronously after spawn. Wait briefly.
+    await runtime.whenSharedSettled();
+    const t = runtime.status();
+    assert.equal(t.shared.length, 1);
+    assert.equal(t.shared[0]!.name, "tts");
+    assert.equal(t.shared[0]!.state, "warm");
+  });
+
+  it("up with no name includes shared services", async () => {
+    await writeFile(join(dir, "shared.js"), SHARED_FIXTURE);
+    const config = await makeConfigWithShared();
+    runtime = new ProjectRuntime({ root: dir, config, portRangeStart: PORT_RANGE_START });
+    await runtime.start();
+    // Stop the eagerly-started shared service so up() actually has work to do.
+    await runtime.down("tts");
+
+    const discovered = await discoverSources(dir, config);
+    for (const d of discovered) await runtime.register(d);
+
+    const upRes = await runtime.up();
+    assert.equal(upRes.failed.length, 0);
+    // started includes both worktree sources and the shared service
+    assert.ok(upRes.started.includes("tts"));
+  });
+
+  it("cut leaves shared services running", async () => {
+    await writeFile(join(dir, "shared.js"), SHARED_FIXTURE);
+    const config = await makeConfigWithShared();
+    runtime = new ProjectRuntime({ root: dir, config, portRangeStart: PORT_RANGE_START });
+    await runtime.start();
+    const discovered = await discoverSources(dir, config);
+    for (const d of discovered) await runtime.register(d);
+
+    // Wait for shared to warm
+    await runtime.whenSharedSettled();
+    const sharedPidBefore = runtime.getShared("tts")!.pid;
+
+    await runtime.up("A");
+    await runtime.cut("A");
+
+    const sharedAfter = runtime.status().shared[0]!;
+    assert.equal(sharedAfter.state, "warm");
+    assert.equal(runtime.getShared("tts")!.pid, sharedPidBefore);
+  });
+
+  it("logs handler resolves shared service names", async () => {
+    await writeFile(join(dir, "shared.js"), SHARED_FIXTURE);
+    const config = await makeConfigWithShared();
+    runtime = new ProjectRuntime({ root: dir, config, portRangeStart: PORT_RANGE_START });
+    await runtime.start();
+    assert.ok(runtime.getShared("tts"));
+    assert.equal(runtime.getSource("tts"), undefined);
+  });
+
+  it("rejects a worktree whose name collides with a shared service", async () => {
+    await writeFile(join(dir, "shared.js"), SHARED_FIXTURE);
+    const proxyPort = await findFreePort({ start: PORT_RANGE_START });
+    const config = ProjectConfig.parse({
+      project: { name: "p", proxy_port: proxyPort },
+      run: {
+        cmd: "node server.js",
+        ready: { http: "/", timeout: "5s", poll_interval: "100ms" },
+      },
+      shared: [{ name: "A", cmd: "node shared.js" }], // collides with worktree A
+    });
+    runtime = new ProjectRuntime({ root: dir, config, portRangeStart: PORT_RANGE_START });
+    await runtime.start();
+    await assert.rejects(
+      () => runtime!.register({ name: "A", worktreePath: join(dir, ".worktree", "A") }),
+      /collides with a \[\[shared\]\] service/,
+    );
+  });
+
+  it("shutdown stops shared services", async () => {
+    await writeFile(join(dir, "shared.js"), SHARED_FIXTURE);
+    const config = await makeConfigWithShared();
+    runtime = new ProjectRuntime({ root: dir, config, portRangeStart: PORT_RANGE_START });
+    await runtime.start();
+    await runtime.whenSharedSettled();
+    await runtime.shutdown();
+    assert.equal(runtime.status().shared[0]!.state, "cold");
   });
 });
