@@ -92,11 +92,12 @@ Status:
 ```sh
 $ hotcut status
 my-app
-  shared:
+  shared
     ● stub-api      :9100  ready
     ● queue-worker    —    ready
-   1) ● ticket-123 :41000 ready  ← on program
-   2) ○ ticket-456   —   cold
+  worktrees
+    ● ticket-123   :41000  ready    ← on program
+    ○ ticket-456     —     cold
 ```
 
 Shared services participate in `hotcut up` (warm everything) and `hotcut down` (stop everything), and are addressable by name in `hotcut up <name>`, `hotcut down <name>`, and `hotcut logs <name>`.
