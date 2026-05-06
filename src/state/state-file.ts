@@ -1,4 +1,4 @@
-import { open, readFile, rename, unlink } from "node:fs/promises";
+import { mkdir, open, readFile, rename, unlink } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { z } from "zod";
 
@@ -57,6 +57,9 @@ export async function writeStateAtomic(
   state: PersistedState,
 ): Promise<void> {
   const dir = dirname(path);
+  // Defensive: ensure the state dir exists. If it was removed out from under
+  // us (e.g. by a prior shutdown) we'd otherwise loop ENOENT on every persist.
+  await mkdir(dir, { recursive: true, mode: 0o700 });
   const tmp = join(dir, "." + Date.now() + "." + process.pid + ".state.tmp");
   const fh = await open(tmp, "w", 0o600);
   try {

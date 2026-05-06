@@ -76,16 +76,20 @@ export async function runDaemon(opts: RunDaemonOpts = {}): Promise<void> {
   // bind anything.
   reapOrphans(persisted);
 
+  let socket: SocketServer | null = null;
+  let shuttingDown = false;
+
   const persist = async (): Promise<void> => {
+    // Once shutdown begins we delete state.json on disk. Any further persists
+    // would race with that cleanup, fail with ENOENT on rename, and spam logs
+    // forever if any source supervisor keeps emitting change events.
+    if (shuttingDown) return;
     try {
       await writeStateAtomic(paths.stateFilePath, state.toPersisted());
     } catch (err) {
       logError("state persist failed", err);
     }
   };
-
-  let socket: SocketServer | null = null;
-  let shuttingDown = false;
 
   const requestShutdown = (): void => {
     if (shuttingDown) return;
@@ -106,6 +110,17 @@ export async function runDaemon(opts: RunDaemonOpts = {}): Promise<void> {
   const shutdown = async (): Promise<void> => {
     state.shuttingDown = true;
     log("daemon shutting down");
+    // Hard backstop: even if a project's shutdown hangs (a child process
+    // ignoring SIGTERM, an fs op blocked, etc.) we must not leave an orphan
+    // daemon. The CLI gives us 5s before giving up; budget a bit more here.
+    const forceExit = setTimeout(() => {
+      logError(
+        "shutdown exceeded 8s — forcing exit",
+        new Error("shutdown timeout"),
+      );
+      process.exit(1);
+    }, 8000);
+    forceExit.unref();
     if (socket) {
       await socket.close().catch(() => {});
       socket = null;
