@@ -12,7 +12,8 @@ describe("ProjectConfig", () => {
     assert.equal(result.project.proxy_port, 8080);
     assert.equal(result.run.shutdown_timeout, "5s");
     assert.equal(result.run.restart_on_crash, true);
-    assert.equal(result.run.ready.http, "/");
+    assert.equal(result.run.ready.protocol, "http");
+    assert.equal(result.run.ready.endpoint, "/");
     assert.equal(result.run.ready.timeout, "30s");
     assert.equal(result.run.ready.poll_interval, "200ms");
   });
@@ -64,13 +65,14 @@ describe("ProjectConfig", () => {
           name: "tts",
           cmd: "yarn dev",
           port: 8081,
-          ready: { http: "/health" },
+          ready: { endpoint: "/health", protocol: "https" },
         },
       ],
     });
     const ready = out.shared[0]!.ready;
-    if (!("http" in ready)) throw new Error("expected http ready");
-    assert.equal(ready.http, "/health");
+    if (!("endpoint" in ready)) throw new Error("expected endpoint ready");
+    assert.equal(ready.endpoint, "/health");
+    assert.equal(ready.protocol, "https");
     assert.equal(ready.timeout, "30s");
   });
 
@@ -78,7 +80,7 @@ describe("ProjectConfig", () => {
     const out = ProjectConfig.safeParse({
       project: { name: "p" },
       run: { cmd: "x" },
-      shared: [{ name: "tts", cmd: "yarn dev", ready: { http: "/" } }],
+      shared: [{ name: "tts", cmd: "yarn dev", ready: { endpoint: "/" } }],
     });
     assert.equal(out.success, false);
   });

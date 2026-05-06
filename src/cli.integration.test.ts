@@ -58,7 +58,7 @@ beforeEach(async () => {
     "",
     "[run]",
     'cmd = "node server.js"',
-    'ready = { http = "/", timeout = "5s", poll_interval = "100ms" }',
+    'ready = { protocol = "http", endpoint = "/", timeout = "5s", poll_interval = "100ms" }',
     "",
   ].join("\n");
   await writeFile(join(project, "hotcut.toml"), toml);

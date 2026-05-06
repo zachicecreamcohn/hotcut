@@ -29,7 +29,7 @@ async function makeConfig(cmd = "node server.js") {
     project: { name: "p", proxy_port: proxyPort },
     run: {
       cmd,
-      ready: { http: "/", timeout: "5s", poll_interval: "100ms" },
+      ready: { protocol: "http", endpoint: "/", timeout: "5s", poll_interval: "100ms" },
     },
   });
 }
@@ -45,7 +45,7 @@ async function makeConfigWithShared() {
     project: { name: "p", proxy_port: proxyPort },
     run: {
       cmd: "node server.js",
-      ready: { http: "/", timeout: "5s", poll_interval: "100ms" },
+      ready: { protocol: "http", endpoint: "/", timeout: "5s", poll_interval: "100ms" },
     },
     shared: [
       { name: "tts", cmd: "node shared.js" },
@@ -195,7 +195,7 @@ describe("ProjectRuntime", () => {
       project: { name: "p", proxy_port: proxyPort },
       run: {
         cmd: "node server.js",
-        ready: { http: "/", timeout: "5s", poll_interval: "100ms" },
+        ready: { protocol: "http", endpoint: "/", timeout: "5s", poll_interval: "100ms" },
       },
       shared: [{ name: "A", cmd: "node shared.js" }], // collides with worktree A
     });

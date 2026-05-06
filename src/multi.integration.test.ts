@@ -49,7 +49,7 @@ describe("multi-source", () => {
       project: { name: "multi", proxy_port: 1 },
       run: {
         cmd: "node server.js",
-        ready: { http: "/", timeout: "5s", poll_interval: "100ms" },
+        ready: { protocol: "http", endpoint: "/", timeout: "5s", poll_interval: "100ms" },
       },
     });
 

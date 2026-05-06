@@ -62,7 +62,7 @@ proxy_port = 8080
 
 [run]
 cmd = "npm start"
-ready = { http = "/", timeout = "30s" }
+ready = { protocol = "http", endpoint = "/", timeout = "30s" }
 warm_concurrency = 4
 
 [env]
@@ -118,7 +118,7 @@ For processes that aren't worktree-specific (e.g. a separate API, a background w
 name = "stub-api"
 cmd  = "node ./scripts/stub-api.js"
 port = 9100
-ready = { http = "/health", timeout = "30s" }
+ready = { protocol = "http", endpoint = "/health", timeout = "30s" }
 
 [[shared]]
 name = "queue-worker"
@@ -131,7 +131,7 @@ cmd  = "node ./scripts/queue-worker.js"
 | `cmd` | — | required, runs from the project root |
 | `cwd` | `.` | relative to project root |
 | `port` | — | when set, exposed as `PORT`/`HOTCUT_PORT` and excluded from the worktree port pool (which starts at `41000`) |
-| `ready` | `{ always = true }` | or `{ http = "/path", timeout, poll_interval }` (requires `port`) |
+| `ready` | `{ always = true }` | or `{ protocol = "http"\|"https", endpoint = "/path", timeout, poll_interval }` (requires `port`) |
 | `env` | `{}` | `$VAR` substitution from `HOTCUT_*` and the parent env |
 | `shutdown_timeout` | `5s` | grace before SIGKILL |
 | `restart` | `{ on_crash = true, backoff_initial = "1s", backoff_max = "30s" }` | auto-restart on unexpected exit with exponential backoff. Set `on_crash = false` to disable |

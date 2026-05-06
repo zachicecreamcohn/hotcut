@@ -50,7 +50,7 @@ describe("SharedService", () => {
       name: "tts",
       cmd: "node server.js",
       port,
-      ready: { http: "/", timeout: "5s", poll_interval: "100ms" },
+      ready: { protocol: "http", endpoint: "/", timeout: "5s", poll_interval: "100ms" },
     });
     const sharedCfg = projectConfig.shared[0]!;
 

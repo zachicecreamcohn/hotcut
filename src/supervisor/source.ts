@@ -80,8 +80,9 @@ export class Source implements Lifecycle {
 
     try {
       await waitForHttpReady({
+        protocol: this.config.run.ready.protocol,
         port: this.port,
-        path: this.config.run.ready.http,
+        path: this.config.run.ready.endpoint,
         timeout: this.config.run.ready.timeout,
         pollInterval: this.config.run.ready.poll_interval,
         signal: this.abort.signal,

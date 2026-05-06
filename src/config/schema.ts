@@ -2,23 +2,28 @@ import { z } from "zod";
 import { DEFAULTS } from "./defaults.js";
 import { Duration } from "./duration.js";
 
+const Protocol = z.enum(["http", "https"]).default("http");
+
 const ReadyCheck = z.object({
-  http: z.string().default(DEFAULTS.ready.httpPath),
+  protocol: Protocol,
+  endpoint: z.string().default(DEFAULTS.ready.endpoint),
   timeout: Duration.default(DEFAULTS.ready.timeout),
   poll_interval: Duration.default(DEFAULTS.ready.pollInterval),
 });
 
 /**
  * Readiness for a shared (project-scoped) service. Either:
- *  - `{ http = "/path" }` — poll http://127.0.0.1:<port><path> until 2xx-4xx
- *  - `{ always = true }`  — consider ready as soon as the process is spawned
+ *  - `{ endpoint = "/path", protocol = "http" | "https" }` —
+ *      poll <protocol>://127.0.0.1:<port><endpoint> until 2xx-4xx
+ *  - `{ always = true }` — consider ready as soon as the process is spawned
  *
- * `http` requires `port` on the service (we need somewhere to poll).
+ * Endpoint readiness requires `port` on the service.
  */
 const SharedReady = z
   .union([
     z.object({
-      http: z.string(),
+      protocol: Protocol,
+      endpoint: z.string(),
       timeout: Duration.default(DEFAULTS.ready.timeout),
       poll_interval: Duration.default(DEFAULTS.ready.pollInterval),
     }),
@@ -71,7 +76,8 @@ export const ProjectConfig = z.object({
     restart_on_crash: z.boolean().default(DEFAULTS.run.restartOnCrash),
     warm_concurrency: z.number().int().min(1).default(DEFAULTS.run.warmConcurrency),
     ready: ReadyCheck.default({
-      http: DEFAULTS.ready.httpPath,
+      protocol: "http",
+      endpoint: DEFAULTS.ready.endpoint,
       timeout: DEFAULTS.ready.timeout,
       poll_interval: DEFAULTS.ready.pollInterval,
     }),
@@ -102,11 +108,11 @@ export const ProjectConfig = z.object({
       });
     }
     seen.add(s.name);
-    if ("http" in s.ready && s.port == null) {
+    if ("endpoint" in s.ready && s.port == null) {
       ctx.addIssue({
         code: "custom",
         path: ["shared", i, "ready"],
-        message: "ready.http requires port on shared service " + s.name,
+        message: "ready.endpoint requires port on shared service " + s.name,
       });
     }
   }

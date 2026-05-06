@@ -41,7 +41,7 @@ export function renderConfig(detection: DetectionResult): string {
     "",
     "[run]",
     `cmd = ${quote(cmd)}`,
-    `ready = { http = "/", timeout = "5m" }`,
+    `ready = { protocol = "http", endpoint = "/", timeout = "5m" }`,
     "warm_concurrency = 1 # max worktrees warmed in parallel by `warm-all`",
     "",
     "[env]",

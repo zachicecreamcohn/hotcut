@@ -2,7 +2,7 @@ export const DEFAULTS = {
   worktreeRoot: ".worktree",
   proxyPort: 8080,
   ready: {
-    httpPath: "/",
+    endpoint: "/",
     timeout: "30s",
     pollInterval: "200ms",
   },

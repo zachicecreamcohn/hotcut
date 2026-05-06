@@ -123,11 +123,12 @@ export class SharedService implements Lifecycle {
     const ready = this.cfg.ready;
     if ("always" in ready) return;
     if (this.port == null) {
-      throw new Error("ready.http requires a port");
+      throw new Error("ready.endpoint requires a port");
     }
     await waitForHttpReady({
+      protocol: ready.protocol,
       port: this.port,
-      path: ready.http,
+      path: ready.endpoint,
       timeout: ready.timeout,
       pollInterval: ready.poll_interval,
       signal: this.abort?.signal,

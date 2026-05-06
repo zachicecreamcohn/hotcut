@@ -61,25 +61,33 @@ export class StatusRenderer {
     }
     for (const p of projects) {
       lines.push(color.bold(p.name));
+      // Compute a single name column width across setup/shared/worktrees so
+      // that the status column (port + label) aligns across all sections.
+      let nameWidth = 0;
+      if (p.setup) {
+        for (const s of p.setup) nameWidth = Math.max(nameWidth, s.name.length);
+      }
+      if (p.shared) {
+        for (const s of p.shared) nameWidth = Math.max(nameWidth, s.name.length);
+      }
+      for (const s of p.sources) nameWidth = Math.max(nameWidth, s.name.length);
+
       if (p.setup && p.setup.length > 0) {
         lines.push("  " + color.dim("setup"));
-        const w = p.setup.reduce((m, s) => Math.max(m, s.name.length), 0);
         for (const s of p.setup) {
-          lines.push(renderSetup(s, w));
+          lines.push(renderSetup(s, nameWidth));
         }
       }
       if (p.shared && p.shared.length > 0) {
         lines.push("  " + color.dim("shared"));
-        const sharedWidth = p.shared.reduce((m, s) => Math.max(m, s.name.length), 0);
         for (const s of p.shared) {
-          lines.push(renderShared(s, sharedWidth));
+          lines.push(renderShared(s, nameWidth));
         }
       }
       lines.push("  " + color.dim("worktrees"));
       if (p.sources.length === 0) {
         lines.push("    " + color.dim("(none)"));
       } else {
-        const nameWidth = p.sources.reduce((m, s) => Math.max(m, s.name.length), 0);
         for (const s of p.sources) {
           const glyph = STATE_GLYPH[s.state];
           const label = STATE_LABEL[s.state];
