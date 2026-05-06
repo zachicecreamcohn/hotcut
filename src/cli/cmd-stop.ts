@@ -28,7 +28,7 @@ export function stopCommand(): Command {
         if (!(err instanceof Error && /closed/.test(err.message))) throw err;
       }
       client.close();
-      const deadline = Date.now() + 5000;
+      const deadline = Date.now() + 30000;
       while (Date.now() < deadline) {
         if (!isAlive(pid)) {
           log(color.green("✓") + " daemon stopped");
@@ -36,7 +36,7 @@ export function stopCommand(): Command {
         }
         await new Promise((r) => setTimeout(r, 50));
       }
-      logError("daemon pid " + pid + " did not exit within 5s");
+      logError("daemon pid " + pid + " did not exit within 30s");
       process.exit(1);
     });
 }
