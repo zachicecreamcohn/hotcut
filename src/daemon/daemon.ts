@@ -79,15 +79,26 @@ export async function runDaemon(opts: RunDaemonOpts = {}): Promise<void> {
   let socket: SocketServer | null = null;
   let shuttingDown = false;
 
+  // Track in-flight persists so shutdown can drain them before deleting
+  // state.json. Without this, a persist that already entered writeStateAtomic
+  // can rename its tmp into place *after* shutdown's unlink, resurrecting the
+  // file and causing the next daemon to re-register everything.
+  const inFlightPersists = new Set<Promise<void>>();
+
   const persist = async (): Promise<void> => {
-    // Once shutdown begins we delete state.json on disk. Any further persists
-    // would race with that cleanup, fail with ENOENT on rename, and spam logs
-    // forever if any source supervisor keeps emitting change events.
     if (shuttingDown) return;
+    const p = (async () => {
+      try {
+        await writeStateAtomic(paths.stateFilePath, state.toPersisted());
+      } catch (err) {
+        logError("state persist failed", err);
+      }
+    })();
+    inFlightPersists.add(p);
     try {
-      await writeStateAtomic(paths.stateFilePath, state.toPersisted());
-    } catch (err) {
-      logError("state persist failed", err);
+      await p;
+    } finally {
+      inFlightPersists.delete(p);
     }
   };
 
@@ -129,6 +140,9 @@ export async function runDaemon(opts: RunDaemonOpts = {}): Promise<void> {
       [...state.projects.values()].map((p) => p.shutdown().catch(() => {})),
     );
     state.projects.clear();
+    // Drain any persist calls that started before `shuttingDown` flipped, so
+    // we don't unlink state.json out from under an in-flight rename.
+    await Promise.allSettled([...inFlightPersists]);
     // Clean shutdown wipes persisted state. A crash leaves it behind so a
     // future restart could pick up where we left off (slice 4+ feature).
     const { unlink, rm } = await import("node:fs/promises");
