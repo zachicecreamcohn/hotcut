@@ -1,5 +1,9 @@
 import { Command } from "commander";
 import type { StatusResult } from "../proto/schema.js";
+import { resolveStatePaths } from "../state/paths.js";
+import { isAlive, readPidFile } from "../state/pid.js";
+import { log } from "../util/log.js";
+import { color } from "../util/color.js";
 import { connectDaemon, registerProject, resolveProject, exitForProtocolError } from "./client-helpers.js";
 import { StatusRenderer } from "./status.js";
 
@@ -19,6 +23,20 @@ export function statusCommand(): Command {
 }
 
 async function runStatus(opts: StatusOptions): Promise<void> {
+  // status is read-only: do not auto-spawn the daemon or auto-register the
+  // project. If nothing is running, say so plainly. (`hotcut <name>`,
+  // `hotcut up`, and `hotcut warm-all` will start things on demand.)
+  const paths = resolveStatePaths();
+  const pid = await readPidFile(paths.pidPath);
+  if (pid === null || !isAlive(pid)) {
+    if (opts.json) {
+      process.stdout.write(JSON.stringify({ projects: [] }) + "\n");
+      return;
+    }
+    log(color.dim("daemon not running"));
+    log(color.dim("run `hotcut <name>` or `hotcut warm-all` to start it"));
+    return;
+  }
   const project = await resolveProject();
   const client = await connectDaemon();
   await registerProject(client, project).catch(exitForProtocolError);

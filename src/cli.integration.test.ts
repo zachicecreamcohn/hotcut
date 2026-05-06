@@ -76,8 +76,9 @@ afterEach(async () => {
 
 describe("cli integration", () => {
   it("auto-starts daemon, runs status, cuts to warm sources, and stops", async () => {
+    // status no longer auto-spawns the daemon: it should report "not running".
     const status1 = await runCli(["status"]);
-    assert.match(status1.stderr, /\bp\b/);
+    assert.match(status1.stderr, /daemon not running/);
 
     await runCli(["A"]);
     const r1 = await fetch("http://127.0.0.1:" + proxyPort + "/");
@@ -166,7 +167,10 @@ describe("cli integration", () => {
   });
 
   it("auto-discovers new worktrees and removes deleted ones", async () => {
-    await runCli(["status"]);
+    // Need a registered project for the watcher to discover; warm-all does
+    // both (auto-spawn daemon + register) without warming sources we don't
+    // need here -- but we'd rather just `up` an existing source.
+    await runCli(["A", "up"]);
 
     // Add a third worktree on the fly.
     const newWt = join(project, ".worktree", "C");
