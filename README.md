@@ -59,6 +59,7 @@ A minimal `hotcut.toml`:
 name = "my-app"
 worktree_root = ".worktree"
 proxy_port = 8080
+protocol = "http"             # or "https" if your dev server uses TLS
 
 [run]
 cmd = "npm start"
@@ -70,6 +71,8 @@ PORT = "$HOTCUT_PORT"
 ```
 
 Each worktree gets its own port via `$HOTCUT_PORT`; the proxy at `proxy_port` routes to whichever worktree is on program. Your dev server must read its port from the env — most node frameworks already honour `PORT`, so the `[env]` mapping above is enough. If yours uses a different variable, map `$HOTCUT_PORT` onto it.
+
+If your dev server speaks HTTPS (e.g. self-signed cert in development), set `protocol = "https"` under `[project]` so the proxy forwards to upstream over TLS. Self-signed certs on localhost are accepted.
 
 ## Setup steps
 

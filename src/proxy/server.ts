@@ -15,11 +15,18 @@ export interface ProxyServer {
   close: () => Promise<void>;
 }
 
+export type ProxyProtocol = "http" | "https";
+
 export async function startProxy(
   proxyPort: number,
   bus: Bus,
+  protocol: ProxyProtocol = "http",
 ): Promise<ProxyServer> {
-  const proxy = httpProxy.createProxyServer({ ws: true, xfwd: true });
+  const proxy = httpProxy.createProxyServer({
+    ws: true,
+    xfwd: true,
+    secure: false,
+  });
 
   proxy.on(
     "error",
@@ -41,7 +48,7 @@ export async function startProxy(
       res.end("hotcut: no source on program\n");
       return;
     }
-    proxy.web(req, res, { target: `http://127.0.0.1:${target.port}` });
+    proxy.web(req, res, { target: `${protocol}://127.0.0.1:${target.port}` });
   });
 
   server.on("upgrade", (req, socket, head) => {
@@ -50,7 +57,7 @@ export async function startProxy(
       socket.destroy();
       return;
     }
-    proxy.ws(req, socket, head, { target: `http://127.0.0.1:${target.port}` });
+    proxy.ws(req, socket, head, { target: `${protocol}://127.0.0.1:${target.port}` });
   });
 
   await new Promise<void>((resolve, reject) => {

@@ -69,6 +69,7 @@ export const ProjectConfig = z.object({
     name: z.string().min(1),
     worktree_root: z.string().default(DEFAULTS.worktreeRoot),
     proxy_port: z.number().int().min(1).max(65535).default(DEFAULTS.proxyPort),
+    protocol: Protocol,
   }),
   run: z.object({
     cmd: z.string().min(1),

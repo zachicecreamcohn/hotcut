@@ -10,6 +10,7 @@ describe("ProjectConfig", () => {
     });
     assert.equal(result.project.worktree_root, ".worktree");
     assert.equal(result.project.proxy_port, 8080);
+    assert.equal(result.project.protocol, "http");
     assert.equal(result.run.shutdown_timeout, "5s");
     assert.equal(result.run.restart_on_crash, true);
     assert.equal(result.run.ready.protocol, "http");
@@ -30,6 +31,22 @@ describe("ProjectConfig", () => {
     const out = ProjectConfig.safeParse({
       project: { name: "p" },
       run: { cmd: "x", shutdown_timeout: "thirty seconds" },
+    });
+    assert.equal(out.success, false);
+  });
+
+  it("accepts protocol = https on project", () => {
+    const out = ProjectConfig.parse({
+      project: { name: "p", protocol: "https" },
+      run: { cmd: "x" },
+    });
+    assert.equal(out.project.protocol, "https");
+  });
+
+  it("rejects invalid protocol", () => {
+    const out = ProjectConfig.safeParse({
+      project: { name: "p", protocol: "ftp" },
+      run: { cmd: "x" },
     });
     assert.equal(out.success, false);
   });

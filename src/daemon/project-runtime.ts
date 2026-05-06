@@ -142,7 +142,11 @@ export class ProjectRuntime {
         throw new ProtocolError(ERROR_CODES.CONFIG_INVALID, "setup: " + msg);
       }
     }
-    this.proxy = await startProxy(this.config.project.proxy_port, this.bus);
+    this.proxy = await startProxy(
+      this.config.project.proxy_port,
+      this.bus,
+      this.config.project.protocol,
+    );
     // Eager start: bring up shared services as soon as the project is registered.
     // Failures are logged but don't block the project — partial startup is
     // visible via `hotcut status` and can be retried with `hotcut up`.
