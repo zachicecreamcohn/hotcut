@@ -1,6 +1,6 @@
 {
   "name": "hotcut",
-  "version": "0.0.14",
+  "version": "0.0.15",
   "description": "Cut to any worktree. Live.",
   "main": "dist/cli/index.js",
   "scripts": {
