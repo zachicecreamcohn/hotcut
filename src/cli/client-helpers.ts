@@ -5,8 +5,9 @@ import { discoverSources } from "../discovery/discovery.js";
 import { ensureDaemon, DaemonStartError } from "../daemon/auto-start.js";
 import type { DaemonClient } from "../daemon/client.js";
 import { ProtocolError, ERROR_CODES } from "../proto/errors.js";
-import type { RegisterResult } from "../proto/schema.js";
-import { logError } from "../util/log.js";
+import type { RegisterResult, StatusResult } from "../proto/schema.js";
+import { color } from "../util/color.js";
+import { log, logError } from "../util/log.js";
 
 export interface ResolvedProject {
   root: string;
@@ -51,7 +52,8 @@ export async function registerProject(
   const sources = await discoverSources(project.root, project.config, {
     requireGit: true,
   });
-  return client.request<RegisterResult>("register", {
+  const hasSetup = (project.config.setup ?? []).length > 0;
+  const req = client.request<RegisterResult>("register", {
     root: project.root,
     name: project.config.project.name,
     proxyPort: project.config.project.proxy_port,
@@ -59,6 +61,38 @@ export async function registerProject(
     sources,
     configJson: JSON.stringify(project.config),
   });
+  if (!hasSetup) return req;
+
+  // While register is in flight, the daemon runs setup steps. Poll status
+  // so the user sees per-step progress instead of a silent 30s+ hang.
+  log(color.dim("running project setup…"));
+  const printed = new Set<string>();
+  let stop = false;
+  const reqDone = req.finally(() => { stop = true; });
+  const poller = (async () => {
+    while (!stop) {
+      try {
+        const t = await client.request<StatusResult>("status", { projectRoot: project.root });
+        const proj = t.projects[0];
+        for (const s of proj?.setup ?? []) {
+          if ((s.state === "done" || s.state === "failed") && !printed.has(s.name)) {
+            printed.add(s.name);
+            const glyph = s.state === "done" ? color.green("✓") : color.red("✖");
+            const tail = s.error ? "  " + color.red(s.error.split("\n", 1)[0] ?? "") : "";
+            log("  " + glyph + " " + s.name + tail);
+          }
+        }
+      } catch {
+        // Ignore polling errors; the request itself will surface real problems.
+      }
+      await new Promise((r) => setTimeout(r, 200));
+    }
+  })();
+  try {
+    return await reqDone;
+  } finally {
+    await poller;
+  }
 }
 
 export function exitForProtocolError(err: unknown): never {

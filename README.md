@@ -71,6 +71,44 @@ PORT = "$HOTCUT_PORT"
 
 Each worktree gets its own port via `$HOTCUT_PORT`; the proxy at `proxy_port` routes to whichever worktree is on program. Your dev server must read its port from the env — most node frameworks already honour `PORT`, so the `[env]` mapping above is enough. If yours uses a different variable, map `$HOTCUT_PORT` onto it.
 
+## Setup steps
+
+For one-shot commands that must run before anything else (e.g. `docker compose up -d`, updating keys), declare them as `[[setup]]`. They run sequentially before shared services or worktrees start.
+
+Setup runs **once per daemon lifetime**, on the first project command after the daemon starts (`hotcut <name>`, `hotcut warm-all`, etc.). Subsequent commands against the same project-including cutting to a cold worktree-do not cause these to be re-run. A daemon restart will re-run them, though, so steps should be idempotent.
+
+```toml
+[[setup]]
+name = "docker"
+cmd  = "docker compose up -d"
+
+[[setup]]
+name = "certs"
+cmd  = "./scripts/gen-certs.sh"
+timeout = "2m"
+```
+
+| field | default | notes |
+|---|---|---|
+| `name` | — | required, unique per project |
+| `cmd` | — | required, runs from the project root |
+| `cwd` | `.` | relative to project root |
+| `env` | `{}` | `$VAR` substitution from `HOTCUT_*` and the parent env |
+| `timeout` | `5m` | non-zero exit or timeout aborts registration |
+
+A failing setup step prevents the project from registering; the failing step's last log lines are surfaced in the error. Tail a step's output with `hotcut <step-name> logs`.
+
+In status:
+
+```
+my-app
+  setup
+    ● docker
+    ● certs
+  worktrees
+    ● ticket-123   :41000  ready    ← on program
+```
+
 ## Shared services
 
 For processes that aren't worktree-specific (e.g. a separate API, a background worker), declare them as `[[shared]]`. hotcut runs one of each per project, started when the project registers, stopped on `hotcut stop`. These are not touched by the `cut` command in any way.

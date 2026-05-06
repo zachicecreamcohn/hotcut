@@ -8,6 +8,7 @@ import { LogBuffer } from "../supervisor/log-buffer.js";
 import { Supervisor } from "../supervisor/supervisor.js";
 import type { Source } from "../supervisor/source.js";
 import { SharedService } from "../supervisor/shared-service.js";
+import { SetupRunner, type SetupStepStatus } from "../supervisor/setup-runner.js";
 import type { Lifecycle } from "../supervisor/process-helpers.js";
 import {
   ERROR_CODES,
@@ -19,6 +20,7 @@ import type {
   CutResult,
   DownResult,
   ProjectStatusDto,
+  SetupStatusDto,
   SharedStatusDto,
   SourceStatusDto,
   UpResult,
@@ -45,6 +47,7 @@ export class ProjectRuntime {
   private watcher: DiscoveryWatcher | null = null;
   private readonly enableWatcher: boolean;
   private readonly shared: SharedService[];
+  private readonly setupRunner: SetupRunner | null;
   /**
    * Promises for in-flight eager-start of shared services. Tests await this
    * to avoid polling; production code can ignore it (failures are also
@@ -80,6 +83,21 @@ export class ProjectRuntime {
     for (const sh of this.shared) {
       sh.onStateChange(() => this.onChange?.());
     }
+    this.setupRunner = opts.config.setup.length === 0
+      ? null
+      : new SetupRunner({
+          projectRoot: opts.root,
+          projectConfig: opts.config,
+          steps: opts.config.setup,
+          logBufferFor: (stepName) =>
+            new LogBuffer({
+              bufferLines: opts.config.log.buffer_lines,
+              filePath: logsDir
+                ? join(logsDir, projectName, "setup", stepName + ".log")
+                : undefined,
+            }),
+          onChange: () => this.onChange?.(),
+        });
     this.supervisor = new Supervisor(opts.config, {
       reservedPorts: reserved,
       portRangeStart: opts.portRangeStart,
@@ -113,6 +131,17 @@ export class ProjectRuntime {
 
   async start(): Promise<void> {
     if (this.proxy) return;
+    // Run project setup steps first. These are one-shot scripts (e.g.
+    // `docker compose up -d`) that must succeed before anything else starts.
+    // Failures abort registration with a clear error.
+    if (this.setupRunner) {
+      try {
+        await this.setupRunner.run();
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        throw new ProtocolError(ERROR_CODES.CONFIG_INVALID, "setup: " + msg);
+      }
+    }
     this.proxy = await startProxy(this.config.project.proxy_port, this.bus);
     // Eager start: bring up shared services as soon as the project is registered.
     // Failures are logged but don't block the project — partial startup is
@@ -250,6 +279,11 @@ export class ProjectRuntime {
       state: s.state,
       port: s.state === "cold" || s.state === "failed" ? null : s.port,
     }));
+    const setup: SetupStatusDto[] = (this.setupRunner?.status() ?? []).map((s) => ({
+      name: s.name,
+      state: s.state,
+      error: s.error,
+    }));
     return {
       name: this.config.project.name,
       root: this.root,
@@ -257,6 +291,7 @@ export class ProjectRuntime {
       proxyPort: this.config.project.proxy_port,
       sources,
       shared,
+      setup,
     };
   }
 
@@ -276,6 +311,7 @@ export class ProjectRuntime {
     await this.supervisor.downAll();
     await Promise.allSettled(this.shared.map((s) => s.down()));
     await Promise.allSettled(this.shared.map((s) => s.closeLogBuffer()));
+    if (this.setupRunner) await this.setupRunner.closeBuffers();
     this.shutdownComplete = true;
   }
 
@@ -306,6 +342,12 @@ export class ProjectRuntime {
 
   getShared(name: string): SharedService | undefined {
     return this.shared.find((s) => s.name === name);
+  }
+
+  /** Returns a setup-step's log buffer if such a step is configured. */
+  getSetupLogBuffer(name: string): { logBuffer: import("../supervisor/log-buffer.js").LogBuffer } | undefined {
+    const buf = this.setupRunner?.getBuffer(name);
+    return buf ? { logBuffer: buf } : undefined;
   }
 
   /**

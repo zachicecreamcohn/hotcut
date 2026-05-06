@@ -38,6 +38,15 @@ const SharedRestart = z
     backoff_max: "30s",
   });
 
+const SetupStep = z.object({
+  name: z.string().min(1),
+  cmd: z.string().min(1),
+  cwd: z.string().default("."),
+  env: z.record(z.string(), z.string()).default({}),
+  timeout: Duration.default("5m"),
+});
+export type SetupStep = z.infer<typeof SetupStep>;
+
 const SharedService = z.object({
   name: z.string().min(1),
   cmd: z.string().min(1),
@@ -80,6 +89,7 @@ export const ProjectConfig = z.object({
     })
     .default({ include: ["*"], exclude: [] }),
   shared: z.array(SharedService).default([]),
+  setup: z.array(SetupStep).default([]),
 }).superRefine((cfg, ctx) => {
   const seen = new Set<string>();
   for (let i = 0; i < cfg.shared.length; i++) {
@@ -99,6 +109,18 @@ export const ProjectConfig = z.object({
         message: "ready.http requires port on shared service " + s.name,
       });
     }
+  }
+  const setupSeen = new Set<string>();
+  for (let i = 0; i < cfg.setup.length; i++) {
+    const s = cfg.setup[i]!;
+    if (setupSeen.has(s.name)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["setup", i, "name"],
+        message: "duplicate setup step name: " + s.name,
+      });
+    }
+    setupSeen.add(s.name);
   }
 });
 

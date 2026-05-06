@@ -1,9 +1,24 @@
 import type {
   ProjectStatusDto,
+  SetupStatusDto,
   SharedStatusDto,
   SourceStatusDto,
 } from "../proto/schema.js";
 import { color } from "../util/color.js";
+
+const SETUP_GLYPH: Record<SetupStatusDto["state"], string> = {
+  pending: color.gray("○"),
+  running: color.yellow("◐"),
+  done: color.green("●"),
+  failed: color.red("✖"),
+};
+
+const SETUP_LABEL: Record<SetupStatusDto["state"], string> = {
+  pending: color.gray("pending".padEnd(8)),
+  running: color.yellow("running".padEnd(8)),
+  done: color.green("done".padEnd(8)),
+  failed: color.red("failed".padEnd(8)),
+};
 
 const STATE_GLYPH: Record<SourceStatusDto["state"], string> = {
   cold: color.gray("○"),
@@ -46,6 +61,13 @@ export class StatusRenderer {
     }
     for (const p of projects) {
       lines.push(color.bold(p.name));
+      if (p.setup && p.setup.length > 0) {
+        lines.push("  " + color.dim("setup"));
+        const w = p.setup.reduce((m, s) => Math.max(m, s.name.length), 0);
+        for (const s of p.setup) {
+          lines.push(renderSetup(s, w));
+        }
+      }
       if (p.shared && p.shared.length > 0) {
         lines.push("  " + color.dim("shared"));
         const sharedWidth = p.shared.reduce((m, s) => Math.max(m, s.name.length), 0);
@@ -94,4 +116,21 @@ function renderShared(s: SharedStatusDto, nameWidth: number): string {
   const portRaw = s.port == null ? "—" : ":" + s.port;
   const port = color.dim(portRaw.padStart(7));
   return "    " + glyph + " " + s.name.padEnd(nameWidth) + " " + port + " " + label;
+}
+
+function renderSetup(s: SetupStatusDto, nameWidth: number): string {
+  const glyph = SETUP_GLYPH[s.state];
+  const label = SETUP_LABEL[s.state];
+  const tail = s.state === "failed" && s.error
+    ? "  " + color.red(firstLine(s.error))
+    : "";
+  // No port column for setup steps; keep the visual width aligned with the
+  // shared/worktrees rows so the columns line up under the project header.
+  const padPort = "        ";
+  return "    " + glyph + " " + s.name.padEnd(nameWidth) + " " + padPort + label + tail;
+}
+
+function firstLine(s: string): string {
+  const i = s.indexOf("\n");
+  return i === -1 ? s : s.slice(0, i);
 }

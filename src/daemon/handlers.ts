@@ -121,16 +121,21 @@ export function buildHandlers(ctx: HandlerCtx): BuiltHandlers {
         // orphans if this one dies without a clean shutdown.
         onChange: () => void ctx.persist(),
       });
+      // Register the runtime *before* start() so concurrent `status` polls can
+      // observe in-progress setup steps. On failure we clean up below.
+      ctx.state.projects.set(p.root, runtime);
       try {
         await runtime.start();
       } catch (err) {
+        ctx.state.projects.delete(p.root);
+        await runtime.shutdown().catch(() => {});
+        if (err instanceof ProtocolError) throw err;
         const msg = err instanceof Error ? err.message : String(err);
         throw new ProtocolError(ERROR_CODES.PORT_UNAVAILABLE, "proxy port: " + msg);
       }
       for (const src of p.sources) {
         await runtime.register({ name: src.name, worktreePath: src.worktreePath });
       }
-      ctx.state.projects.set(p.root, runtime);
       await ctx.persist();
       return { ok: true, registered: true };
     },
@@ -155,11 +160,11 @@ export function buildHandlers(ctx: HandlerCtx): BuiltHandlers {
     [METHODS.logs]: async (params, ctl) => {
       const p = LogsParams.parse(params);
       const r = requireProject(ctx, p.projectRoot);
-      const source = r.getSource(p.name) ?? r.getShared(p.name);
+      const source = r.getSource(p.name) ?? r.getShared(p.name) ?? r.getSetupLogBuffer(p.name);
       if (!source) {
         throw new ProtocolError(
           ERROR_CODES.SOURCE_NOT_FOUND,
-          "source or shared service not found: " + p.name,
+          "source, shared service, or setup step not found: " + p.name,
         );
       }
       const buffer = source.logBuffer;
