@@ -70,6 +70,8 @@ export const ProjectConfig = z.object({
     worktree_root: z.string().default(DEFAULTS.worktreeRoot),
     proxy_port: z.number().int().min(1).max(65535).default(DEFAULTS.proxyPort),
     protocol: Protocol,
+    tls_cert: z.string().optional(),
+    tls_key: z.string().optional(),
   }),
   run: z.object({
     cmd: z.string().min(1),
@@ -98,6 +100,15 @@ export const ProjectConfig = z.object({
   shared: z.array(SharedService).default([]),
   setup: z.array(SetupStep).default([]),
 }).superRefine((cfg, ctx) => {
+  if (cfg.project.protocol === "https") {
+    if (!cfg.project.tls_cert || !cfg.project.tls_key) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["project", "protocol"],
+        message: "protocol = \"https\" requires project.tls_cert and project.tls_key",
+      });
+    }
+  }
   const seen = new Set<string>();
   for (let i = 0; i < cfg.shared.length; i++) {
     const s = cfg.shared[i]!;

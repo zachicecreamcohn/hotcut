@@ -142,10 +142,18 @@ export class ProjectRuntime {
         throw new ProtocolError(ERROR_CODES.CONFIG_INVALID, "setup: " + msg);
       }
     }
+    const tlsCert = this.config.project.tls_cert;
+    const tlsKey = this.config.project.tls_key;
     this.proxy = await startProxy(
       this.config.project.proxy_port,
       this.bus,
       this.config.project.protocol,
+      tlsCert && tlsKey
+        ? {
+            cert: tlsCert.startsWith("/") ? tlsCert : join(this.root, tlsCert),
+            key: tlsKey.startsWith("/") ? tlsKey : join(this.root, tlsKey),
+          }
+        : undefined,
     );
     // Eager start: bring up shared services as soon as the project is registered.
     // Failures are logged but don't block the project — partial startup is
@@ -265,7 +273,7 @@ export class ProjectRuntime {
     const port = this.proxy?.port ?? this.config.project.proxy_port;
     return {
       program: source.name,
-      url: "http://localhost:" + port,
+      url: this.config.project.protocol + "://localhost:" + port,
       tookMs: Date.now() - startedAt,
     };
   }

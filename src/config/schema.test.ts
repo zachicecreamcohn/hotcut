@@ -35,12 +35,27 @@ describe("ProjectConfig", () => {
     assert.equal(out.success, false);
   });
 
-  it("accepts protocol = https on project", () => {
+  it("accepts protocol = https on project when tls cert + key are set", () => {
     const out = ProjectConfig.parse({
-      project: { name: "p", protocol: "https" },
+      project: {
+        name: "p",
+        protocol: "https",
+        tls_cert: "certs/cert.pem",
+        tls_key: "certs/key.pem",
+      },
       run: { cmd: "x" },
     });
     assert.equal(out.project.protocol, "https");
+    assert.equal(out.project.tls_cert, "certs/cert.pem");
+    assert.equal(out.project.tls_key, "certs/key.pem");
+  });
+
+  it("rejects protocol = https without tls cert + key", () => {
+    const out = ProjectConfig.safeParse({
+      project: { name: "p", protocol: "https" },
+      run: { cmd: "x" },
+    });
+    assert.equal(out.success, false);
   });
 
   it("rejects invalid protocol", () => {

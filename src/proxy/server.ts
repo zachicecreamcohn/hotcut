@@ -1,26 +1,36 @@
 import {
-  createServer,
+  createServer as createHttpServer,
   type IncomingMessage,
-  type Server,
+  type Server as HttpServer,
   type ServerResponse,
 } from "node:http";
+import { createServer as createHttpsServer, type Server as HttpsServer } from "node:https";
+
+type AnyServer = HttpServer | HttpsServer;
+import { readFile } from "node:fs/promises";
 import type { Socket } from "node:net";
 import httpProxy from "http-proxy-3";
 import type { Bus } from "../bus/bus.js";
 import { log, logError } from "../util/log.js";
 
 export interface ProxyServer {
-  server: Server;
+  server: AnyServer;
   port: number;
   close: () => Promise<void>;
 }
 
 export type ProxyProtocol = "http" | "https";
 
+export interface ProxyTlsOpts {
+  cert: string;
+  key: string;
+}
+
 export async function startProxy(
   proxyPort: number,
   bus: Bus,
   protocol: ProxyProtocol = "http",
+  tls?: ProxyTlsOpts,
 ): Promise<ProxyServer> {
   const proxy = httpProxy.createProxyServer({
     ws: true,
@@ -41,7 +51,7 @@ export async function startProxy(
     },
   );
 
-  const server = createServer((req, res) => {
+  const requestHandler = (req: IncomingMessage, res: ServerResponse) => {
     const target = bus.programTarget();
     if (!target) {
       res.writeHead(503, { "content-type": "text/plain" });
@@ -49,7 +59,19 @@ export async function startProxy(
       return;
     }
     proxy.web(req, res, { target: `${protocol}://127.0.0.1:${target.port}` });
-  });
+  };
+
+  let server: AnyServer;
+  if (protocol === "https") {
+    if (!tls) throw new Error("https proxy requires tls cert and key");
+    const [cert, key] = await Promise.all([
+      readFile(tls.cert, "utf8"),
+      readFile(tls.key, "utf8"),
+    ]);
+    server = createHttpsServer({ cert, key }, requestHandler);
+  } else {
+    server = createHttpServer(requestHandler);
+  }
 
   server.on("upgrade", (req, socket, head) => {
     const target = bus.programTarget();
@@ -70,7 +92,7 @@ export async function startProxy(
 
   const addr = server.address();
   const boundPort = addr && typeof addr !== "string" ? addr.port : proxyPort;
-  log(`proxy listening on http://localhost:${boundPort}`);
+  log(`proxy listening on ${protocol}://localhost:${boundPort}`);
 
   return {
     server,
